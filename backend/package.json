@@ -1,0 +1,32 @@
+{
+  "name": "@natillera/backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "build": "node scripts/build-check.js",
+    "test": "node --test",
+    "lint": "eslint src prisma scripts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "prisma db seed"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "node-cron": "^4.2.1",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.1",
+    "prisma": "^6.19.0"
+  }
+}

@@ -1,0 +1,542 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SOCIO
+  ADMINISTRADOR
+
+  @@map("rol")
+}
+
+enum VigenciaStatus {
+  ABIERTA
+  CERRADA
+  LIQUIDADA
+
+  @@map("estado_vigencia")
+}
+
+enum MemberStatus {
+  ACTIVO
+  INACTIVO
+  ELIMINADO
+
+  @@map("estado_socio")
+}
+
+enum LoanType {
+  SOCIO
+  PARTICULAR
+
+  @@map("tipo_prestamo")
+}
+
+enum LoanStatus {
+  ACTIVO
+  PAGADO
+  FINALIZADO
+  VENCIDO
+  CASTIGADO
+
+  @@map("estado_prestamo")
+}
+
+enum DebtStatus {
+  PENDIENTE
+  PAGADA
+  DESCONTADA
+  CANCELADA
+
+  @@map("estado_deuda")
+}
+
+enum UserStatus {
+  ACTIVO
+  INACTIVO
+  BLOQUEADO
+  ELIMINADO
+
+  @@map("estado_usuario")
+}
+
+model User {
+  id                         String                      @id @default(cuid())
+  email                      String                      @unique @map("correo")
+  passwordHash               String                      @map("clave_hash")
+  role                       Role                        @default(ADMINISTRADOR) @map("rol")
+  firstName                  String                      @default("") @map("nombres")
+  lastName                   String                      @default("") @map("apellidos")
+  document                   String?                     @unique @map("documento")
+  username                   String                      @unique @default(cuid()) @map("nombre_usuario")
+  status                     UserStatus                  @default(ACTIVO) @map("estado")
+  lastLoginAt                DateTime?                   @map("ultimo_acceso") @db.Timestamptz(3)
+  failedLoginAttempts        Int                         @default(0) @map("intentos_fallidos")
+  lockedUntil                DateTime?                   @map("bloqueado_hasta") @db.Timestamptz(3)
+  member                     Member?
+  refreshTokens              RefreshToken[]
+  auditLogs                  AuditLog[]
+  accessLogs                 AccessLog[]
+  recordedPayments           LoanPayment[]               @relation("PaymentRecorder")
+  raffleDistributions        RaffleDistribution[]        @relation("RaffleDistributionUser")
+  rafflePayments             RaffleMemberPayment[]       @relation("RafflePaymentRecorder")
+  annulledRafflePayments     RaffleMemberPayment[]       @relation("RafflePaymentAnnulment")
+  monthlyRaffleDistributions RaffleProgramDistribution[] @relation("MonthlyRaffleDistributionUser")
+  recordedActivityPayments  ActivityParticipantPayment[] @relation("ActivityPaymentRecorder")
+  recordedSalePayments      ActivitySalePayment[]        @relation("ActivitySalePaymentRecorder")
+  createdAt                  DateTime                    @default(now()) @map("creado_en") @db.Timestamptz(3)
+  updatedAt                  DateTime                    @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+  deletedAt                  DateTime?                   @map("eliminado_en") @db.Timestamptz(3)
+  deletedBy                  String?                     @map("eliminado_por")
+
+  @@map("usuario")
+}
+
+model RolePermission {
+  id        String   @id @default(cuid())
+  role      Role     @map("rol")
+  module    String   @map("modulo")
+  action    String   @map("accion")
+  allowed   Boolean  @default(false) @map("permitido")
+  updatedBy String?  @map("actualizado_por")
+  updatedAt DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+
+  @@unique([role, module, action])
+  @@map("permiso_rol")
+}
+
+model RoleFieldPermission {
+  id        String   @id @default(cuid())
+  role      Role     @map("rol")
+  module    String   @map("modulo")
+  field     String   @map("campo")
+  visible   Boolean  @default(false) @map("visible")
+  updatedBy String?  @map("actualizado_por")
+  updatedAt DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+
+  @@unique([role, module, field])
+  @@map("permiso_campo_rol")
+}
+
+model AccessLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("usuario_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event     String   @map("evento")
+  success   Boolean  @map("exitoso")
+  ipAddress String?  @map("direccion_ip")
+  userAgent String?  @map("agente_usuario")
+  createdAt DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@index([userId, createdAt])
+  @@map("historial_acceso")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique @map("hash_token")
+  userId    String    @map("usuario_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime  @map("vence_en") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revocado_en") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("token_actualizacion")
+}
+
+model Vigencia {
+  id            String         @id @default(cuid())
+  year          Int            @unique @map("anio")
+  status        VigenciaStatus @default(ABIERTA) @map("estado")
+  closedAt      DateTime?      @map("cerrada_en") @db.Timestamptz(3)
+  members       Member[]
+  savings       Saving[]
+  loans         Loan[]
+  activities    Activity[]
+  raffles       Raffle[]
+  raffleProgram RaffleProgram?
+  debts         Debt[]
+  liquidations  Liquidation[]
+  createdAt     DateTime       @default(now()) @map("creado_en") @db.Timestamptz(3)
+  updatedAt     DateTime       @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+  deletedAt     DateTime?      @map("eliminado_en") @db.Timestamptz(3)
+  deletedBy     String?        @map("eliminado_por")
+
+  @@map("vigencia")
+}
+
+model Member {
+  id                         String                      @id @default(cuid())
+  document                   String                      @unique @map("documento")
+  firstName                  String                      @map("nombres")
+  lastName                   String                      @map("apellidos")
+  birthDate                  DateTime?                   @map("fecha_nacimiento") @db.Timestamptz(3)
+  phone                      String?                     @map("telefono")
+  email                      String?                     @unique @map("correo")
+  address                    String?                     @map("direccion")
+  joinedAt                   DateTime                    @default(now()) @map("fecha_ingreso") @db.Timestamptz(3)
+  raffleNumber               String?                     @map("numero_rifa")
+  role                       Role                        @default(SOCIO) @map("rol")
+  status                     MemberStatus                @default(ACTIVO) @map("estado")
+  vigenciaId                 String                      @map("vigencia_id")
+  vigencia                   Vigencia                    @relation(fields: [vigenciaId], references: [id])
+  userId                     String?                     @unique @map("usuario_id")
+  user                       User?                       @relation(fields: [userId], references: [id])
+  savings                    Saving[]
+  loans                      Loan[]
+  debts                      Debt[]
+  liquidations               Liquidation[]
+  activityLinks              ActivityParticipant[]
+  activitySales              ActivitySale[]
+  raffleWins                 Raffle[]                    @relation("RaffleWinner")
+  monthlyRaffleWins          RaffleMonth[]               @relation("MonthlyRaffleWinner")
+  raffleDistributions        RaffleDistribution[]        @relation("RaffleDistributionMember")
+  rafflePayments             RaffleMemberPayment[]
+  monthlyRaffleDistributions RaffleProgramDistribution[] @relation("MonthlyRaffleDistributionMember")
+  createdAt                  DateTime                    @default(now()) @map("creado_en") @db.Timestamptz(3)
+  updatedAt                  DateTime                    @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+  deletedAt                  DateTime?                   @map("eliminado_en") @db.Timestamptz(3)
+  deletedBy                  String?                     @map("eliminado_por")
+
+  @@unique([vigenciaId, raffleNumber])
+  @@index([vigenciaId, status])
+  @@index([document])
+  @@map("socio")
+}
+
+model Saving {
+  id          String    @id @default(cuid())
+  memberId    String    @map("socio_id")
+  member      Member    @relation(fields: [memberId], references: [id])
+  vigenciaId  String    @map("vigencia_id")
+  vigencia    Vigencia  @relation(fields: [vigenciaId], references: [id])
+  date        DateTime  @default(now()) @map("fecha") @db.Timestamptz(3)
+  amount      Decimal   @map("valor") @db.Decimal(14, 2)
+  observation String?   @map("observacion")
+  createdAt   DateTime  @default(now()) @map("creado_en") @db.Timestamptz(3)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("eliminado_en") @db.Timestamptz(3)
+  deletedBy   String?   @map("eliminado_por")
+
+  @@index([memberId, vigenciaId])
+  @@map("ahorro")
+}
+
+model Activity {
+  id           String                @id @default(cuid())
+  name         String                @map("nombre")
+  description  String?               @map("descripcion")
+  date         DateTime              @default(now()) @map("fecha") @db.Timestamptz(3)
+  income       Decimal               @map("ingresos") @db.Decimal(14, 2)
+  costs        Decimal               @map("costos") @db.Decimal(14, 2)
+  participantCost Decimal             @default(0) @map("valor_por_participante") @db.Decimal(14, 2)
+  vigenciaId   String                @map("vigencia_id")
+  vigencia     Vigencia              @relation(fields: [vigenciaId], references: [id])
+  participants ActivityParticipant[]
+  products     ActivityProduct[]
+  sales        ActivitySale[]
+  createdAt    DateTime              @default(now()) @map("creado_en") @db.Timestamptz(3)
+  deletedAt    DateTime?             @map("eliminado_en") @db.Timestamptz(3)
+  deletedBy    String?               @map("eliminado_por")
+
+  @@index([vigenciaId, date])
+  @@map("actividad")
+}
+
+model ActivityParticipant {
+  activityId String   @map("actividad_id")
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  memberId   String   @map("socio_id")
+  member     Member   @relation(fields: [memberId], references: [id])
+  gain       Decimal  @default(0) @map("ganancia") @db.Decimal(14, 2)
+  payments   ActivityParticipantPayment[]
+
+  @@id([activityId, memberId])
+  @@map("actividad_participante")
+}
+
+model ActivityParticipantPayment {
+  id            String              @id @default(cuid())
+  activityId    String              @map("actividad_id")
+  memberId      String              @map("socio_id")
+  participant   ActivityParticipant @relation(fields: [activityId, memberId], references: [activityId, memberId], onDelete: Restrict)
+  amount        Decimal             @map("valor") @db.Decimal(14, 2)
+  paidAt        DateTime            @default(now()) @map("pagado_en") @db.Timestamptz(3)
+  observations  String?             @map("observaciones")
+  recordedById  String              @map("registrado_por")
+  recordedBy    User                @relation("ActivityPaymentRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+  createdAt     DateTime            @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@index([activityId, memberId, paidAt])
+  @@map("pago_actividad_participante")
+}
+
+model ActivityProduct {
+  id         String   @id @default(cuid())
+  activityId String   @map("actividad_id")
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  name       String   @map("nombre")
+  unitCost   Decimal  @map("costo_unitario") @db.Decimal(14, 2)
+  unitPrice  Decimal  @map("precio_unitario") @db.Decimal(14, 2)
+  createdAt  DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@index([activityId])
+  @@map("producto_actividad")
+}
+
+model ActivitySale {
+  id        String                @id @default(cuid())
+  activityId String               @map("actividad_id")
+  activity  Activity              @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  memberId  String                @map("socio_id")
+  member    Member                @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  product   String                @map("producto")
+  quantity  Int                   @map("cantidad")
+  unitCost  Decimal               @map("costo_unitario") @db.Decimal(14, 2)
+  unitPrice Decimal               @map("precio_unitario") @db.Decimal(14, 2)
+  payments  ActivitySalePayment[]
+  createdAt DateTime              @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@index([activityId, memberId])
+  @@map("venta_actividad")
+}
+
+model ActivitySalePayment {
+  id           String       @id @default(cuid())
+  saleId       String       @map("venta_id")
+  sale         ActivitySale @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  amount       Decimal      @map("valor") @db.Decimal(14, 2)
+  paidAt       DateTime     @default(now()) @map("pagado_en") @db.Timestamptz(3)
+  observations String?      @map("observaciones")
+  recordedById String       @map("registrado_por")
+  recordedBy   User         @relation("ActivitySalePaymentRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+  createdAt    DateTime     @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@index([saleId, paidAt])
+  @@map("pago_venta_actividad")
+}
+
+model Loan {
+  id                String        @id @default(cuid())
+  borrowerName      String        @map("nombre_prestatario")
+  memberId          String?       @map("socio_id")
+  member            Member?       @relation(fields: [memberId], references: [id])
+  type              LoanType      @map("tipo")
+  principal         Decimal       @map("monto") @db.Decimal(14, 2)
+  rate              Decimal       @map("tasa") @db.Decimal(5, 2)
+  date              DateTime      @default(now()) @map("fecha") @db.Timestamptz(3)
+  installments      Int           @default(1) @map("cuotas")
+  balance           Decimal       @map("saldo") @db.Decimal(14, 2)
+  pendingInterest   Decimal       @default(0) @map("intereses_pendientes") @db.Decimal(14, 2)
+  generatedInterest Decimal       @default(0) @map("intereses_generados") @db.Decimal(14, 2)
+  interestAnchorAt  DateTime      @default(now()) @map("fecha_ancla_interes") @db.Timestamptz(3)
+  lastInterestAt    DateTime      @default(now()) @map("ultimo_calculo_interes") @db.Timestamptz(3)
+  observations      String?       @map("observaciones")
+  status            LoanStatus    @default(ACTIVO) @map("estado")
+  vigenciaId        String        @map("vigencia_id")
+  vigencia          Vigencia      @relation(fields: [vigenciaId], references: [id])
+  payments          LoanPayment[]
+  createdAt         DateTime      @default(now()) @map("creado_en") @db.Timestamptz(3)
+  deletedAt         DateTime?     @map("eliminado_en") @db.Timestamptz(3)
+  deletedBy         String?       @map("eliminado_por")
+
+  @@index([vigenciaId, status])
+  @@index([memberId])
+  @@map("prestamo")
+}
+
+model LoanPayment {
+  id                 String    @id @default(cuid())
+  loanId             String    @map("prestamo_id")
+  loan               Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  date               DateTime  @default(now()) @map("fecha") @db.Timestamptz(3)
+  amount             Decimal   @map("valor") @db.Decimal(14, 2)
+  principal          Decimal   @map("capital") @db.Decimal(14, 2)
+  interest           Decimal   @map("interes") @db.Decimal(14, 2)
+  mora               Decimal   @default(0) @map("mora") @db.Decimal(14, 2)
+  previousBalance    Decimal   @map("saldo_anterior") @db.Decimal(14, 2)
+  newBalance         Decimal   @map("nuevo_saldo") @db.Decimal(14, 2)
+  observations       String?   @map("observaciones")
+  recordedBy         String?   @map("registrado_por")
+  recordedByUser     User?     @relation("PaymentRecorder", fields: [recordedBy], references: [id], onDelete: SetNull)
+  annulledAt         DateTime? @map("anulado_en") @db.Timestamptz(3)
+  annulledBy         String?   @map("anulado_por")
+  cancellationReason String?   @map("motivo_anulacion")
+  createdAt          DateTime  @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@map("pago_prestamo")
+}
+
+model Raffle {
+  id              String               @id @default(cuid())
+  date            DateTime             @default(now()) @map("fecha") @db.Timestamptz(3)
+  winningNumber   String?              @map("numero_ganador")
+  prize           Decimal              @map("premio") @db.Decimal(14, 2)
+  collectedAmount Decimal              @default(0) @map("recaudado") @db.Decimal(14, 2)
+  adminCommission Decimal              @default(0) @map("comision_administrativa") @db.Decimal(14, 2)
+  vigenciaId      String               @map("vigencia_id")
+  vigencia        Vigencia             @relation(fields: [vigenciaId], references: [id])
+  winnerId        String?              @map("ganador_id")
+  winner          Member?              @relation("RaffleWinner", fields: [winnerId], references: [id])
+  distributions   RaffleDistribution[]
+  createdAt       DateTime             @default(now()) @map("creado_en") @db.Timestamptz(3)
+  deletedAt       DateTime?            @map("eliminado_en") @db.Timestamptz(3)
+  deletedBy       String?              @map("eliminado_por")
+
+  @@unique([vigenciaId, date])
+  @@index([vigenciaId, winningNumber])
+  @@map("rifa")
+}
+
+model RaffleDistribution {
+  id        String   @id @default(cuid())
+  raffleId  String   @map("rifa_id")
+  raffle    Raffle   @relation(fields: [raffleId], references: [id], onDelete: Restrict)
+  memberId  String?  @map("socio_id")
+  member    Member?  @relation("RaffleDistributionMember", fields: [memberId], references: [id], onDelete: Restrict)
+  userId    String?  @map("usuario_id")
+  user      User?    @relation("RaffleDistributionUser", fields: [userId], references: [id], onDelete: Restrict)
+  type      String   @map("tipo")
+  amount    Decimal  @map("valor") @db.Decimal(14, 2)
+  createdAt DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@unique([raffleId, memberId])
+  @@unique([raffleId, userId])
+  @@index([memberId])
+  @@index([userId])
+  @@map("distribucion_rifa")
+}
+
+model RaffleProgram {
+  id            String        @id @default(cuid())
+  vigenciaId    String        @unique @map("vigencia_id")
+  vigencia      Vigencia      @relation(fields: [vigenciaId], references: [id], onDelete: Restrict)
+  monthlyAmount Decimal       @map("valor_mensual") @db.Decimal(14, 2)
+  months        RaffleMonth[]
+  createdAt     DateTime      @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@map("programa_rifa")
+}
+
+model RaffleMonth {
+  id              String                      @id @default(cuid())
+  programId       String                      @map("programa_id")
+  program         RaffleProgram               @relation(fields: [programId], references: [id], onDelete: Restrict)
+  month           Int                         @map("mes")
+  drawAt          DateTime                    @map("fecha_sorteo") @db.Timestamptz(3)
+  monthlyAmount   Decimal                     @map("valor_por_socio") @db.Decimal(14, 2)
+  collectedAmount Decimal                     @default(0) @map("recaudado") @db.Decimal(14, 2)
+  winningNumber   String?                     @map("numero_ganador")
+  winnerMemberId  String?                     @map("ganador_id")
+  winner          Member?                     @relation("MonthlyRaffleWinner", fields: [winnerMemberId], references: [id], onDelete: Restrict)
+  prize           Decimal                     @default(0) @map("premio") @db.Decimal(14, 2)
+  adminCommission Decimal                     @default(0) @map("comision_administrativa") @db.Decimal(14, 2)
+  finalizedAt     DateTime?                   @map("finalizado_en") @db.Timestamptz(3)
+  entries         RaffleMemberPayment[]
+  distributions   RaffleProgramDistribution[]
+
+  @@unique([programId, month])
+  @@index([drawAt])
+  @@map("rifa_mensual")
+}
+
+model RaffleMemberPayment {
+  id               String      @id @default(cuid())
+  raffleMonthId    String      @map("rifa_mensual_id")
+  raffleMonth      RaffleMonth @relation(fields: [raffleMonthId], references: [id], onDelete: Restrict)
+  memberId         String      @map("socio_id")
+  member           Member      @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  amount           Decimal     @map("valor") @db.Decimal(14, 2)
+  paidAt           DateTime?   @map("pagado_en") @db.Timestamptz(3)
+  recordedById     String?     @map("registrado_por")
+  recordedBy       User?       @relation("RafflePaymentRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+  discountedAmount Decimal     @default(0) @map("valor_descontado") @db.Decimal(14, 2)
+  discountedAt     DateTime?   @map("descontado_en") @db.Timestamptz(3)
+  annulledAt       DateTime?   @map("anulado_en") @db.Timestamptz(3)
+  annulledById     String?     @map("anulado_por")
+  annulledBy       User?       @relation("RafflePaymentAnnulment", fields: [annulledById], references: [id], onDelete: Restrict)
+
+  @@unique([raffleMonthId, memberId])
+  @@index([memberId, paidAt])
+  @@map("pago_rifa_mensual")
+}
+
+model RaffleProgramDistribution {
+  id            String      @id @default(cuid())
+  raffleMonthId String      @map("rifa_mensual_id")
+  raffleMonth   RaffleMonth @relation(fields: [raffleMonthId], references: [id], onDelete: Restrict)
+  memberId      String?     @map("socio_id")
+  member        Member?     @relation("MonthlyRaffleDistributionMember", fields: [memberId], references: [id], onDelete: Restrict)
+  userId        String?     @map("usuario_id")
+  user          User?       @relation("MonthlyRaffleDistributionUser", fields: [userId], references: [id], onDelete: Restrict)
+  type          String      @map("tipo")
+  amount        Decimal     @map("valor") @db.Decimal(14, 2)
+  createdAt     DateTime    @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@unique([raffleMonthId, memberId])
+  @@unique([raffleMonthId, userId])
+  @@index([memberId])
+  @@index([userId])
+  @@map("distribucion_rifa_mensual")
+}
+
+model Debt {
+  id         String     @id @default(cuid())
+  memberId   String     @map("socio_id")
+  member     Member     @relation(fields: [memberId], references: [id])
+  vigenciaId String     @map("vigencia_id")
+  vigencia   Vigencia   @relation(fields: [vigenciaId], references: [id])
+  concept    String     @map("concepto")
+  amount     Decimal    @map("valor") @db.Decimal(14, 2)
+  status     DebtStatus @default(PENDIENTE) @map("estado")
+  dueDate    DateTime?  @map("fecha_vencimiento") @db.Timestamptz(3)
+  createdAt  DateTime   @default(now()) @map("creado_en") @db.Timestamptz(3)
+  deletedAt  DateTime?  @map("eliminado_en") @db.Timestamptz(3)
+  deletedBy  String?    @map("eliminado_por")
+
+  @@index([vigenciaId, memberId, status])
+  @@map("deuda")
+}
+
+model Liquidation {
+  id                   String   @id @default(cuid())
+  vigenciaId           String   @map("vigencia_id")
+  vigencia             Vigencia @relation(fields: [vigenciaId], references: [id])
+  memberId             String   @map("socio_id")
+  member               Member   @relation(fields: [memberId], references: [id])
+  savings              Decimal  @map("ahorros") @db.Decimal(14, 2)
+  activityGain         Decimal  @map("ganancia_actividades") @db.Decimal(14, 2)
+  loanGain             Decimal  @map("ganancia_prestamos") @db.Decimal(14, 2)
+  raffleGain           Decimal  @map("ganancia_rifas") @db.Decimal(14, 2)
+  adminCommission      Decimal  @map("comision_administrativa") @db.Decimal(14, 2)
+  raffleFeesDiscounted Decimal  @default(0) @map("rifas_descontadas") @db.Decimal(14, 2)
+  debtsDiscounted      Decimal  @map("deudas_descontadas") @db.Decimal(14, 2)
+  finalAmount          Decimal  @map("valor_final") @db.Decimal(14, 2)
+  roleSnapshot         Role     @map("rol_al_cierre")
+  createdAt            DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@unique([vigenciaId, memberId])
+  @@map("liquidacion")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("usuario_id")
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String   @map("accion")
+  entity    String   @map("entidad")
+  entityId  String?  @map("entidad_id")
+  metadata  Json?    @map("datos")
+  ipAddress String?  @map("direccion_ip")
+  createdAt DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("auditoria")
+}

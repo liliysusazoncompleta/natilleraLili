@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://natillera_ci:natillera_ci@localhost:5432/natillera_ci
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: natillera_ci
+          POSTGRES_PASSWORD: natillera_ci
+          POSTGRES_DB: natillera_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U natillera_ci -d natillera_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @natillera/backend prisma:generate
+      - run: pnpm --filter @natillera/backend exec prisma validate
+      - run: pnpm --filter @natillera/backend exec prisma migrate deploy
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build

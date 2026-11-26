@@ -1,0 +1,20 @@
+{
+  "name": "la-natillera-de-lili",
+  "private": true,
+  "engines": {
+    "node": ">=22.12 <25"
+  },
+  "pnpm": {
+    "overrides": {
+      "deepmerge-ts": "8.0.2",
+      "effect": "3.22.1"
+    }
+  },
+  "scripts": {
+    "dev": "pnpm --filter @natillera/backend dev",
+    "build": "pnpm --filter @natillera/backend build && pnpm --filter @natillera/frontend build",
+    "test": "pnpm --filter @natillera/backend test && pnpm --filter @natillera/frontend test",
+    "lint": "pnpm --filter @natillera/backend lint && pnpm --filter @natillera/frontend lint"
+  },
+  "packageManager": "pnpm@10.33.0"
+}
