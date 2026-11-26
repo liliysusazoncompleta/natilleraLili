@@ -10,7 +10,9 @@
     "lint": "eslint src prisma scripts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "user:create-initial-admin": "node scripts/create-initial-admin.js",
+    "user:reset-password": "node scripts/reset-user-password.js"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
