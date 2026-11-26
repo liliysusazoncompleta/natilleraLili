@@ -137,6 +137,38 @@ pnpm --filter @natillera/backend exec prisma migrate deploy
 
 `backend/prisma/migrations/` contiene la migración inicial y los cambios incrementales. `database/schema.sql` contiene el esquema completo para pgAdmin; no combine ambos flujos. Para una base existente, no ejecute `migrate dev`, `migrate deploy`, `migrate resolve`, `db push`, seed ni scripts de esquema hasta revisar el historial y el esquema completo, verificar un respaldo restaurable y acordar un plan de preservación probado en una copia aislada. Que una migración figure como pendiente no significa que sea seguro aplicarla. El primer usuario administrador requiere un procedimiento de aprovisionamiento seguro; el seed de demostración está bloqueado en producción.
 
+#### Crear el primer administrador y entrar por primera vez
+
+El seed (`prisma:seed`) contiene datos y contraseñas de demostración: no lo ejecute en producción. Para crear el primer administrador, primero confirme que Railway está conectado a la base de producción correcta, que el backend ya se desplegó con este script y que `NODE_ENV=production`. Desde PowerShell local, abra una shell del servicio backend:
+
+```powershell
+railway ssh --service natilleraLili --environment production
+```
+
+En la shell remota, desde `/app`, ejecute el aprovisionamiento interactivo:
+
+```bash
+node backend/scripts/create-initial-admin.js
+```
+
+Si `node` no se reconoce en la shell, encuentre la ruta de Node incluida en el proceso del backend:
+
+```bash
+for f in /proc/[0-9]*/exe; do target=$(readlink "$f" 2>/dev/null) || continue; case "$target" in */bin/node) echo "$target"; break;; esac; done
+```
+
+Ejecute el script usando la ruta que imprimió el comando, seguida de `backend/scripts/create-initial-admin.js`. Por ejemplo, si imprimió `/mise/installs/node/22.23.5/bin/node`:
+
+```bash
+/mise/installs/node/22.23.5/bin/node backend/scripts/create-initial-admin.js
+```
+
+El programa solicita nombres, apellidos, correo, nombre de usuario y contraseña; la contraseña no se muestra al escribirla. Escriba `CREAR ADMINISTRADOR` cuando lo solicite. La contraseña debe tener al menos 8 caracteres y no superar 72 bytes. El comando solo funciona con `NODE_ENV=production` y se niega a crear otra cuenta si ya existe un administrador. No copie contraseñas en SQL, comandos, capturas ni chats.
+
+Al finalizar, abra la página publicada <https://liliysusazoncompleta.github.io/natilleraLili/#/login> e inicie sesión con el nombre de usuario o el correo recién creado y su contraseña. Después de verificar el acceso, use el menú **Socios** para registrar perfiles y **Usuarios** para crear cuentas de acceso adicionales. Guarde la contraseña en un gestor seguro.
+
+Para recuperar la contraseña de una cuenta existente y activa, use desde una terminal interactiva segura `pnpm --filter @natillera/backend user:reset-password` con `DATABASE_URL` apuntando a la base correcta. El comando pide el correo exacto, exige escribir `RESTABLECER`, solicita la nueva contraseña sin mostrarla, guarda únicamente su hash bcrypt y revoca los tokens de sesión existentes. Si la base de producción solo es accesible desde Railway, ejecute el procedimiento desde una shell autorizada de ese servicio, usando la ruta de Node si no está en `PATH`.
+
 ### Despliegue del backend en Railway
 
 1. **Antes de desplegar, rote las credenciales de PostgreSQL expuestas en la captura.** Considérelas comprometidas, revoque las anteriores y coordine la rotación con los servicios que las usan; cambiar solo una variable no cambia necesariamente la contraseña del rol en PostgreSQL. No publique la URL ni la captura en logs, código o frontend.
@@ -149,9 +181,9 @@ pnpm --filter @natillera/backend exec prisma migrate deploy
 
    El build genera el cliente Prisma y verifica la sintaxis; ni el build ni el arranque aplican migraciones o seed. No configure un pre-deploy que los ejecute. El healthcheck solo verifica que el proceso responde, no comprueba PostgreSQL.
 4. En **Variables** del backend, agregue `DATABASE_URL` como referencia a la variable interna `DATABASE_URL` del servicio PostgreSQL del mismo entorno. Si el servicio se llama `Postgres`, el valor de referencia es `${{Postgres.DATABASE_URL}}`; sustituya `Postgres` por el nombre real del servicio usando el selector de Railway. No use `DATABASE_PUBLIC_URL` para esta conexión ni exponga PostgreSQL públicamente. La red privada de Railway funciona entre servicios del mismo entorno, no desde el equipo local; confirme conectividad y TLS según la configuración efectiva del servicio.
-5. Configure también `NODE_ENV=production`, `JWT_SECRET` como secreto aleatorio único de al menos 32 caracteres y `CORS_ORIGIN` como el origen HTTPS exacto del frontend. Railway proporciona `PORT`; no lo fije a 4000. Defina `JWT_EXPIRES_IN` y `JWT_REFRESH_EXPIRES_IN` solo si desea cambiar sus valores predeterminados.
+5. Configure también `NODE_ENV=production`, `JWT_SECRET` como secreto aleatorio único de al menos 32 caracteres y `CORS_ORIGIN` con los orígenes HTTPS de los frontends adicionales, separados por comas. El backend agrega automáticamente `https://liliysusazoncompleta.github.io` a la lista permitida en producción. Railway proporciona `PORT`; no lo fije a 4000. Defina `JWT_EXPIRES_IN` y `JWT_REFRESH_EXPIRES_IN` solo si desea cambiar sus valores predeterminados.
 6. Configure el frontend por separado: antes de compilar, defina `VITE_API_URL` como la URL HTTPS pública del backend terminada en `/api`. Esta variable es pública en el navegador; nunca ponga credenciales ni `DATABASE_URL` en variables `VITE_`. Configure fallback SPA y CORS para el dominio real.
-7. Antes de habilitar tráfico, resuelva por separado el estado de la base de destino. Una base existente sin historial Prisma o con drift requiere una decisión y un plan de reconciliación no destructivo; una base nueva requiere validar primero las migraciones en otra base desechable. Después de desplegar, verifique `/api/health` y una consulta autenticada de solo lectura; el healthcheck por sí solo no demuestra que la base funcione. El aprovisionamiento seguro del primer administrador sigue pendiente.
+7. Antes de habilitar tráfico, resuelva por separado el estado de la base de destino. Una base existente sin historial Prisma o con drift requiere una decisión y un plan de reconciliación no destructivo; una base nueva requiere validar primero las migraciones en otra base desechable. Después de desplegar, verifique `/api/health` y una consulta autenticada de solo lectura; el healthcheck por sí solo no demuestra que la base funcione. Cree el administrador inicial con el procedimiento interactivo descrito arriba; nunca ejecute el seed en producción.
 
 Referencias: [variables entre servicios](https://docs.railway.com/variables#referencing-another-services-variable), [PostgreSQL](https://docs.railway.com/databases/postgresql) y [red privada](https://docs.railway.com/networking/private-networking).
 
@@ -200,7 +232,7 @@ Sirva todo el contenido de `frontend\dist` desde el dominio del frontend y confi
 
 El flujo `.github/workflows/pages.yml` compila y publica el frontend al actualizar la rama `desarrollo` o al ejecutarlo manualmente. En GitHub, vaya a **Settings > Pages > Build and deployment** y cambie **Source** de **Deploy from a branch** a **GitHub Actions**. Publicar una rama que solo contiene el README no publica la aplicación compilada. Los cambios deben estar en la rama remota antes de que el flujo pueda ejecutarse.
 
-En **Settings > Secrets and variables > Actions > Variables**, cree `VITE_API_URL` con la URL HTTPS pública del backend terminada en `/api` (sin credenciales), por ejemplo `https://api.dominio.com/api`. Vuelva a ejecutar el flujo después de cambiarla, pues Vite incorpora la variable durante la compilación. Si falta o no es válida, se mostrará un aviso y el inicio de sesión estará deshabilitado. GitHub Pages solo aloja el frontend: el backend debe estar desplegado y accesible por HTTPS, con `CORS_ORIGIN=https://liliysusazoncompleta.github.io` en Railway. No use la URL privada de PostgreSQL ni la del backend interno de Railway en el navegador.
+El flujo usa `https://natilleralili-production.up.railway.app/api` como URL pública predeterminada del backend. Para otro backend, en **Settings > Secrets and variables > Actions > Variables**, configure `VITE_API_URL` con la URL HTTPS pública terminada en `/api` (sin credenciales); esa variable reemplaza el valor predeterminado. Vuelva a ejecutar el flujo después de cambiarla, pues Vite incorpora la variable durante la compilación. Si la URL no es válida, se mostrará un aviso y el inicio de sesión estará deshabilitado. GitHub Pages solo aloja el frontend: el backend debe estar desplegado y accesible por HTTPS, con `CORS_ORIGIN=https://liliysusazoncompleta.github.io` en Railway. No use la URL privada de PostgreSQL ni la del backend interno de Railway en el navegador.
 
 En Pages las rutas usan `#` para que funcionen la recarga y los enlaces directos sin una regla de fallback del servidor; los demás despliegues conservan sus rutas habituales.
 

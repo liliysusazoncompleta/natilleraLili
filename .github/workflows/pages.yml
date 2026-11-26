@@ -33,7 +33,7 @@ jobs:
         env:
           VITE_GITHUB_PAGES: "true"
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://natilleralili-production.up.railway.app/api' }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist

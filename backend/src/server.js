@@ -1591,14 +1591,7 @@ app.post("/api/rifas-mensuales/:id/pagos/:memberId", requirePermission("rifas", 
     const updated = await prisma.$transaction(async (tx) => {
       const entry = await tx.raffleMemberPayment.findUnique({
         where: { raffleMonthId_memberId: { raffleMonthId: req.params.id, memberId: req.params.memberId } },
-        include: {
-          raffleMonth: {
-            include: {
-              program: { select: { vigenciaId: true, vigencia: { select: { status: true } } } }
-            }
-          },
-          member: { select: { id: true, status: true, role: true, deletedAt: true } }
-        }
+        include: { raffleMonth: true }
       });
       if (!entry) {
         const error = new Error("No existe una cuota de rifa para ese socio y mes");
@@ -1607,38 +1600,6 @@ app.post("/api/rifas-mensuales/:id/pagos/:memberId", requirePermission("rifas", 
       }
       if (entry.raffleMonth.finalizedAt) {
         const error = new Error("El sorteo de este mes ya fue cerrado");
-        error.status = 409;
-        throw error;
-      }
-      if (entry.raffleMonth.program.vigencia.status !== "ABIERTA") {
-        const error = new Error("La vigencia ya está cerrada");
-        error.status = 409;
-        throw error;
-      }
-      if (now >= entry.raffleMonth.drawAt) {
-        const error = new Error("El pago debe registrarse antes de la fecha y hora del sorteo");
-        error.status = 409;
-        throw error;
-      }
-      const hasCurrentSavings = entry.member.role === "ADMINISTRADOR" && await tx.saving.findFirst({
-        where: {
-          memberId: entry.member.id,
-          vigenciaId: entry.raffleMonth.program.vigenciaId,
-          deletedAt: null
-        },
-        select: { id: true }
-      });
-      if (entry.member.role === "ADMINISTRADOR" && !hasCurrentSavings) {
-        const error = new Error("Un miembro con rol ADMINISTRADOR debe tener ahorros en la vigencia para participar");
-        error.status = 409;
-        throw error;
-      }
-      if (
-        entry.member.status !== "ACTIVO" ||
-        !["SOCIO", "ADMINISTRADOR"].includes(entry.member.role) ||
-        entry.member.deletedAt
-      ) {
-        const error = new Error("El socio no está activo para registrar esta cuota");
         error.status = 409;
         throw error;
       }
@@ -1678,7 +1639,7 @@ app.patch("/api/rifas-mensuales/:id/pagos/:memberId/anular", requirePermission("
     const updated = await prisma.$transaction(async (tx) => {
       const entry = await tx.raffleMemberPayment.findUnique({
         where: { raffleMonthId_memberId: { raffleMonthId: req.params.id, memberId: req.params.memberId } },
-        include: { raffleMonth: { include: { program: { select: { vigencia: { select: { status: true } } } } } } }
+        include: { raffleMonth: true }
       });
       if (!entry) {
         const error = new Error("No existe una cuota de rifa para ese socio y mes");
@@ -1687,16 +1648,6 @@ app.patch("/api/rifas-mensuales/:id/pagos/:memberId/anular", requirePermission("
       }
       if (entry.raffleMonth.finalizedAt) {
         const error = new Error("No se puede anular un pago de un sorteo cerrado");
-        error.status = 409;
-        throw error;
-      }
-      if (entry.raffleMonth.program.vigencia.status !== "ABIERTA") {
-        const error = new Error("No se puede anular el pago después del cierre de la vigencia");
-        error.status = 409;
-        throw error;
-      }
-      if (now >= entry.raffleMonth.drawAt) {
-        const error = new Error("El pago solo se puede anular antes de la fecha y hora del sorteo");
         error.status = 409;
         throw error;
       }
