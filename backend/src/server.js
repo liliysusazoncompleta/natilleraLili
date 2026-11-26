@@ -20,6 +20,7 @@ import {
   calculateRaffleDistribution,
   isRaffleDateInVigencia,
   normalizeRaffleAmount,
+  normalizeRafflePaymentDate,
   planRaffleSchedule,
   projectRaffleDistribution,
   sumRaffleAmounts
@@ -1588,10 +1589,16 @@ app.get("/api/rifas-mensuales", requirePermission("rifas", "consultar"), async (
 app.post("/api/rifas-mensuales/:id/pagos/:memberId", requirePermission("rifas", "editar"), requireAdmin, async (req, res, next) => {
   try {
     const now = new Date();
+    let paidAt;
+    try { paidAt = normalizeRafflePaymentDate(req.body.paidAt, now); }
+    catch (error) { return res.status(400).json({ error: error.message }); }
     const updated = await prisma.$transaction(async (tx) => {
       const entry = await tx.raffleMemberPayment.findUnique({
         where: { raffleMonthId_memberId: { raffleMonthId: req.params.id, memberId: req.params.memberId } },
-        include: { raffleMonth: true }
+        include: {
+          raffleMonth: { include: { program: { select: { vigenciaId: true } } } },
+          member: { select: { id: true, status: true, role: true, deletedAt: true } }
+        }
       });
       if (!entry) {
         const error = new Error("No existe una cuota de rifa para ese socio y mes");
@@ -1603,6 +1610,28 @@ app.post("/api/rifas-mensuales/:id/pagos/:memberId", requirePermission("rifas", 
         error.status = 409;
         throw error;
       }
+      const hasCurrentSavings = entry.member.role === "ADMINISTRADOR" && await tx.saving.findFirst({
+        where: {
+          memberId: entry.member.id,
+          vigenciaId: entry.raffleMonth.program.vigenciaId,
+          deletedAt: null
+        },
+        select: { id: true }
+      });
+      if (entry.member.role === "ADMINISTRADOR" && !hasCurrentSavings) {
+        const error = new Error("Un miembro con rol ADMINISTRADOR debe tener ahorros en la vigencia para participar");
+        error.status = 409;
+        throw error;
+      }
+      if (
+        entry.member.status !== "ACTIVO" ||
+        !["SOCIO", "ADMINISTRADOR"].includes(entry.member.role) ||
+        entry.member.deletedAt
+      ) {
+        const error = new Error("El socio no está activo para registrar esta cuota");
+        error.status = 409;
+        throw error;
+      }
       if (entry.paidAt) {
         const error = new Error("La cuota de este socio ya está pagada");
         error.status = 409;
@@ -1611,7 +1640,7 @@ app.post("/api/rifas-mensuales/:id/pagos/:memberId", requirePermission("rifas", 
 
       const changed = await tx.raffleMemberPayment.updateMany({
         where: { id: entry.id, paidAt: null },
-        data: { paidAt: now, recordedById: req.user.sub }
+        data: { paidAt, recordedById: req.user.sub }
       });
       if (changed.count !== 1) {
         const error = new Error("La cuota ya fue actualizada por otro administrador");
@@ -1627,6 +1656,60 @@ app.post("/api/rifas-mensuales/:id/pagos/:memberId", requirePermission("rifas", 
       paidAt: updated.paidAt
     });
     res.json(updated);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    next(error);
+  }
+});
+
+app.patch("/api/rifas-mensuales/:id/pagos/:memberId/fecha", requirePermission("rifas", "editar"), requireAdmin, async (req, res, next) => {
+  try {
+    const now = new Date();
+    let paidAt;
+    try { paidAt = normalizeRafflePaymentDate(req.body.paidAt, now); }
+    catch (error) { return res.status(400).json({ error: error.message }); }
+    const updated = await prisma.$transaction(async (tx) => {
+      const entry = await tx.raffleMemberPayment.findUnique({
+        where: { raffleMonthId_memberId: { raffleMonthId: req.params.id, memberId: req.params.memberId } },
+        include: { raffleMonth: true }
+      });
+      if (!entry) {
+        const error = new Error("No existe una cuota de rifa para ese socio y mes");
+        error.status = 404;
+        throw error;
+      }
+      if (entry.raffleMonth.finalizedAt) {
+        const error = new Error("No se puede modificar la fecha de pago de un sorteo cerrado");
+        error.status = 409;
+        throw error;
+      }
+      if (!entry.paidAt) {
+        const error = new Error("No se puede modificar la fecha de una cuota pendiente");
+        error.status = 409;
+        throw error;
+      }
+      const previousPaidAt = entry.paidAt;
+      const changed = await tx.raffleMemberPayment.updateMany({
+        where: { id: entry.id, paidAt: previousPaidAt },
+        data: { paidAt, recordedById: req.user.sub }
+      });
+      if (changed.count !== 1) {
+        const error = new Error("El pago ya fue actualizado por otro administrador");
+        error.status = 409;
+        throw error;
+      }
+      return {
+        previousPaidAt,
+        payment: await tx.raffleMemberPayment.findUnique({ where: { id: entry.id } })
+      };
+    }, { isolationLevel: "Serializable" });
+    await audit(req, "RAFFLE_FEE_DATE_UPDATED", "raffle_month_payment", updated.payment.id, {
+      raffleMonthId: updated.payment.raffleMonthId,
+      memberId: updated.payment.memberId,
+      previousPaidAt: updated.previousPaidAt,
+      paidAt: updated.payment.paidAt
+    });
+    res.json(updated.payment);
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message });
     next(error);

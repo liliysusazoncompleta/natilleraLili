@@ -5,6 +5,7 @@ import {
   calculateRaffleDistribution,
   isRaffleDateInVigencia,
   normalizeRaffleAmount,
+  normalizeRafflePaymentDate,
   planRaffleSchedule,
   projectRaffleDistribution
 } from "./raffle-finance.js";
@@ -12,6 +13,15 @@ import {
 test("raffle amounts are normalized exactly to cents and reject extra decimals", () => {
   assert.equal(normalizeRaffleAmount("123.4"), "123.40");
   assert.throws(() => normalizeRaffleAmount("1.005"), /máximo dos decimales/);
+});
+
+test("raffle payment dates default to now, allow past dates, and reject invalid or future dates", () => {
+  const now = new Date("2026-11-26T20:00:00.000Z");
+  const pastDate = new Date("2026-06-02T15:00:00.000Z");
+  assert.equal(normalizeRafflePaymentDate(undefined, now), now);
+  assert.equal(normalizeRafflePaymentDate(pastDate.toISOString(), now).getTime(), pastDate.getTime());
+  assert.throws(() => normalizeRafflePaymentDate("invalid", now), /fecha de pago válida/);
+  assert.throws(() => normalizeRafflePaymentDate("2026-11-26T20:00:01.000Z", now), /no puede estar en el futuro/);
 });
 
 test("raffle fee discounts apply in order, cap at the available balance, and preserve partial balances", () => {
