@@ -313,7 +313,6 @@ export default function Raffles() {
               <Table>
                 <TableHead><TableRow>
                   <TableCell>Socio</TableCell>
-                  <TableCell>Número de rifa</TableCell>
                   <TableCell>Valor del mes</TableCell>
                   <TableCell>Pago</TableCell>
                   <TableCell>Fecha de pago</TableCell>
@@ -324,7 +323,6 @@ export default function Raffles() {
                   {selectedMonth.entries.map((entry) => (
                     <TableRow key={entry.id}>
                       <TableCell>{displayName(entry.member)}</TableCell>
-                      <TableCell>{entry.member.raffleNumber || "—"}</TableCell>
                       <TableCell>{currency.format(Number(entry.amount))}</TableCell>
                       <TableCell>
                         {entry.status}
@@ -339,15 +337,11 @@ export default function Raffles() {
                       <TableCell>{entry.paidAt ? new Date(entry.paidAt).toLocaleString("es-CO") : "—"}</TableCell>
                       <TableCell>{entry.eligible ? "Sí" : "No"}</TableCell>
                       <TableCell>
-                        {entry.paidAt && !selectedMonth.finalizedAt && new Date() < new Date(selectedMonth.drawAt) && (
+                        {entry.paidAt && !selectedMonth.finalizedAt && (
                           <Button size="small" color="error" disabled={saving} onClick={() => annulPayment(entry)}>Anular pago</Button>
                         )}
                         {!entry.paidAt && ["PENDIENTE", "DESCUENTO PARCIAL"].includes(entry.status) &&
-                          !selectedMonth.finalizedAt && new Date() < new Date(selectedMonth.drawAt) &&
-                          entry.member.status === "ACTIVO" &&
-                          ["SOCIO", "ADMINISTRADOR"].includes(entry.member.role) &&
-                          (entry.member.role === "SOCIO" || entry.member.hasVigenciaSavings) &&
-                          !entry.member.deletedAt && (
+                          !selectedMonth.finalizedAt && (
                           <Button size="small" disabled={saving} onClick={() => registerPayment(entry)}>Registrar pago</Button>
                         )}
                       </TableCell>
