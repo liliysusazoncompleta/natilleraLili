@@ -1,5 +1,7 @@
 # Creación de la base de datos
 
+> **Bases existentes:** las instrucciones y scripts históricos de este documento no autorizan su ejecución directa. Antes de cualquier cambio de esquema, seed o registro de migraciones, verifique un respaldo restaurable, compare el esquema y el historial completos y acuerde un plan de preservación probado en una copia aislada. No use `migrate dev`, `migrate deploy`, `migrate resolve` ni `db push` mientras exista drift o se desconozca el historial. No reinicie ni vacíe la base de pruebas.
+
 ## Filtros de consulta
 
 Las consultas de la aplicación aceptan parámetros opcionales para buscar y reducir resultados sin modificar el esquema:
@@ -41,20 +43,7 @@ También puede copiar manualmente el contenido de `database/schema.sql` y pegarl
 
 La historia Prisma parte de una migración inicial y aplica cambios posteriores. Está destinada únicamente a una base vacía. Para nuevas instalaciones de producción, se recomienda aplicar y registrar todas las migraciones con `pnpm --filter @natillera/backend exec prisma migrate deploy` en vez de ejecutar el SQL manualmente; así se mantiene sincronizada la tabla de historial de Prisma.
 
-Si ejecutó `database/schema.sql` manualmente en una base vacía y desea continuar administrándola con Prisma, configure `DATABASE_URL` para esa misma base y marque todas las migraciones como aplicadas únicamente después de verificar que todo el script terminó correctamente:
-
-```powershell
-pnpm --filter @natillera/backend exec prisma migrate resolve --applied 20261124010000_inicial
-pnpm --filter @natillera/backend exec prisma migrate resolve --applied 20261124193000_distribucion_rifa_mensual
-pnpm --filter @natillera/backend exec prisma migrate resolve --applied 20261124203000_rifa_por_socio_y_calendario
-pnpm --filter @natillera/backend exec prisma migrate resolve --applied 20261124213000_control_cuotas_rifa
-pnpm --filter @natillera/backend exec prisma migrate resolve --applied 20261124223000_activities_participant_payments
-pnpm --filter @natillera/backend exec prisma migrate resolve --applied 20261124233000_ventas_actividades
-pnpm --filter @natillera/backend exec prisma migrate resolve --applied 20261125000000_catalogo_productos_actividad
-pnpm --filter @natillera/backend exec prisma migrate resolve --applied 20261125010000_valor_rifa_por_sorteo
-```
-
-No ejecute este comando en una base existente sin comparar previamente su esquema completo con la migración.
+Si se creó una base con `database/schema.sql` y se quiere administrar con Prisma, no marque migraciones como aplicadas por el solo hecho de que el script terminara correctamente. El historial debe reconciliarse únicamente después de comparar el esquema completo y validar un plan específico sin pérdida de datos.
 
 ### Comprobar las tablas creadas
 

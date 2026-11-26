@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "pnpm --filter @natillera/backend dev",
     "build": "pnpm --filter @natillera/backend build && pnpm --filter @natillera/frontend build",
+    "build:railway": "pnpm --filter @natillera/backend prisma:generate && pnpm --filter @natillera/backend build",
     "test": "pnpm --filter @natillera/backend test && pnpm --filter @natillera/frontend test",
     "lint": "pnpm --filter @natillera/backend lint && pnpm --filter @natillera/frontend lint"
   },

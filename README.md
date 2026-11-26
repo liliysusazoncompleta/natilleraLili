@@ -50,7 +50,7 @@ Si ya tiene configurada `backend\.env`, omita la copia y confirme que `DATABASE_
 
 ### 3. Preparar Prisma
 
-Ejecute los siguientes comandos desde la raíz:
+Los siguientes comandos de migración y seed son **solo para una base local nueva y vacía**, después de validar la cadena de migraciones en una base desechable. El seed modifica datos. Si la base ya contiene tablas o datos, no ejecute migraciones ni seed: consulte primero la sección de bases existentes. Ejecute desde la raíz:
 
 ```powershell
 pnpm --filter @natillera/backend prisma:generate
@@ -126,7 +126,7 @@ En producción, el backend no inicia si faltan `DATABASE_URL`, `CORS_ORIGIN` o u
 
 ### 2. Preparar Prisma y la base de datos
 
-La migración inicial se aplica solo a una base de datos vacía. Desde la raíz:
+La migración inicial se aplica solo a una base de datos vacía. Antes de usarla en producción, valide la cadena completa de migraciones sobre una base desechable independiente y confirme que la base de producción está vacía. Solo entonces, desde la raíz y con `DATABASE_URL` apuntando a esa base nueva:
 
 ```powershell
 corepack enable
@@ -135,15 +135,33 @@ pnpm --filter @natillera/backend prisma:generate
 pnpm --filter @natillera/backend exec prisma migrate deploy
 ```
 
-`backend/prisma/migrations/` contiene la migración inicial y los cambios incrementales; Prisma Migrate las aplica en orden. `database/schema.sql` contiene el esquema completo para pgAdmin, así que no ejecute ambos flujos sobre la misma base. Para una base que ya contiene datos, no aplique el SQL de creación directamente: compare el esquema y aplique únicamente las migraciones pendientes. El primer usuario administrador también requiere un procedimiento de aprovisionamiento seguro; el seed de demostración está bloqueado en producción.
+`backend/prisma/migrations/` contiene la migración inicial y los cambios incrementales. `database/schema.sql` contiene el esquema completo para pgAdmin; no combine ambos flujos. Para una base existente, no ejecute `migrate dev`, `migrate deploy`, `migrate resolve`, `db push`, seed ni scripts de esquema hasta revisar el historial y el esquema completo, verificar un respaldo restaurable y acordar un plan de preservación probado en una copia aislada. Que una migración figure como pendiente no significa que sea seguro aplicarla. El primer usuario administrador requiere un procedimiento de aprovisionamiento seguro; el seed de demostración está bloqueado en producción.
 
-Para habilitar ventas de actividades en una base existente administrada con pgAdmin, haga un respaldo y ejecute una vez `database/migracion_ventas_actividades.sql` después de las migraciones previas de actividades. No ejecute ese script si utiliza Prisma Migrate o creó la base con el esquema completo. Regenere el cliente con `pnpm --filter @natillera/backend prisma:generate` y reinicie el backend. Registre los ingresos y costos generales sin incluir las ventas detalladas, pues estas se suman automáticamente; sus saldos se consultan en Deudas y no se descuentan en la liquidación.
+### Despliegue del backend en Railway
+
+1. **Antes de desplegar, rote las credenciales de PostgreSQL expuestas en la captura.** Considérelas comprometidas, revoque las anteriores y coordine la rotación con los servicios que las usan; cambiar solo una variable no cambia necesariamente la contraseña del rol en PostgreSQL. No publique la URL ni la captura en logs, código o frontend.
+2. Mantenga la base local de pruebas y sus datos sin cambios. En Railway use servicios PostgreSQL independientes para producción y pruebas, en entornos aislados; no referencie la base de producción desde pruebas ni copie datos sin autorización. Habilite respaldos y verifique su restauración en una base aislada.
+3. En el mismo proyecto y entorno de Railway, conecte el repositorio a un servicio backend. Deje el directorio raíz del servicio en la raíz del monorepositorio para que estén disponibles el workspace y el lockfile. Use Railpack con Node.js 24 y pnpm 10. En **Settings**, configure:
+
+   - Build command: `pnpm install --frozen-lockfile --prod=false && pnpm run build:railway`
+   - Start command: `pnpm --filter @natillera/backend start`
+   - Healthcheck path: `/api/health`
+
+   El build genera el cliente Prisma y verifica la sintaxis; ni el build ni el arranque aplican migraciones o seed. No configure un pre-deploy que los ejecute. El healthcheck solo verifica que el proceso responde, no comprueba PostgreSQL.
+4. En **Variables** del backend, agregue `DATABASE_URL` como referencia a la variable interna `DATABASE_URL` del servicio PostgreSQL del mismo entorno. Si el servicio se llama `Postgres`, el valor de referencia es `${{Postgres.DATABASE_URL}}`; sustituya `Postgres` por el nombre real del servicio usando el selector de Railway. No use `DATABASE_PUBLIC_URL` para esta conexión ni exponga PostgreSQL públicamente. La red privada de Railway funciona entre servicios del mismo entorno, no desde el equipo local; confirme conectividad y TLS según la configuración efectiva del servicio.
+5. Configure también `NODE_ENV=production`, `JWT_SECRET` como secreto aleatorio único de al menos 32 caracteres y `CORS_ORIGIN` como el origen HTTPS exacto del frontend. Railway proporciona `PORT`; no lo fije a 4000. Defina `JWT_EXPIRES_IN` y `JWT_REFRESH_EXPIRES_IN` solo si desea cambiar sus valores predeterminados.
+6. Configure el frontend por separado: antes de compilar, defina `VITE_API_URL` como la URL HTTPS pública del backend terminada en `/api`. Esta variable es pública en el navegador; nunca ponga credenciales ni `DATABASE_URL` en variables `VITE_`. Configure fallback SPA y CORS para el dominio real.
+7. Antes de habilitar tráfico, resuelva por separado el estado de la base de destino. Una base existente sin historial Prisma o con drift requiere una decisión y un plan de reconciliación no destructivo; una base nueva requiere validar primero las migraciones en otra base desechable. Después de desplegar, verifique `/api/health` y una consulta autenticada de solo lectura; el healthcheck por sí solo no demuestra que la base funcione. El aprovisionamiento seguro del primer administrador sigue pendiente.
+
+Referencias: [variables entre servicios](https://docs.railway.com/variables#referencing-another-services-variable), [PostgreSQL](https://docs.railway.com/databases/postgresql) y [red privada](https://docs.railway.com/networking/private-networking).
+
+El script histórico `database/migracion_ventas_actividades.sql` no debe ejecutarse sin la revisión y el plan anteriores. Registre los ingresos y costos generales sin incluir las ventas detalladas, pues estas se suman automáticamente; sus saldos se consultan en Deudas y no se descuentan en la liquidación.
 
 Las ventas y sus abonos solo se pueden registrar o modificar mientras la vigencia esté abierta. Un socio puede comprar productos aunque no figure entre los participantes de la actividad.
 
 En **Actividades > Ventas > Administrar productos**, registre previamente el nombre, costo y precio unitario de cada producto de la actividad. Para vender, seleccione comprador y producto, ingrese cantidad y abono; el valor adquirido se calcula automáticamente. Al modificar un producto, los precios nuevos se aplican solo a ventas futuras. Las ventas anteriores conservan sus datos y pueden editarse en cantidad, siempre que el valor no quede por debajo de lo abonado.
 
-Para una base existente que ya tenga actividades, haga un respaldo y ejecute en pgAdmin 4 > **Query Tool** `database/migracion_catalogo_productos_actividad.sql` una sola vez. Las ventas previas se conservan; los productos deben registrarse en el catálogo para nuevas ventas. Después detenga el backend, ejecute `pnpm --filter @natillera/backend prisma:generate` y reinícielo. Si usa Prisma Migrate o creó la base con el esquema completo actualizado, no ejecute el script manual.
+El script histórico `database/migracion_catalogo_productos_actividad.sql` también requiere esa revisión previa. Los productos deben registrarse en el catálogo para nuevas ventas.
 
 ### 3. Compilar la aplicación
 
@@ -244,7 +262,7 @@ El administrador registra la actividad, su fecha, ingresos y costos generales, a
 
 Las ganancias netas positivas de una actividad se asignan únicamente a sus participantes, ponderadas por sus ahorros de la vigencia; si ninguno tiene ahorros, se reparten equitativamente. Tener saldo pendiente por el costo de participación no excluye al socio de las ganancias. El administrador puede editar la actividad y el valor por participante mientras la vigencia esté abierta; no puede reducir dicho valor por debajo de lo ya abonado ni retirar participantes con abonos registrados.
 
-Para una base ya existente, haga respaldo y ejecute en pgAdmin 4 > **Query Tool** `database/migracion_actividades_participantes.sql`. El script agrega `actividad.valor_por_participante` y crea `pago_actividad_participante`, sin borrar los registros existentes. No lo ejecute si acaba de crear la base con `database/schema.sql` o ya aplicó la migración Prisma correspondiente. Después regenere Prisma:
+El script histórico `database/migracion_actividades_participantes.sql` agrega campos y tablas para participantes. No lo ejecute en una base existente sin el plan de preservación descrito en la sección de producción. Para regenerar el cliente sin modificar el esquema:
 
 ```powershell
 pnpm --filter @natillera/backend prisma:generate
@@ -304,13 +322,13 @@ Para evitar reescribir la historia financiera, un pago solo se puede editar o an
 
 ### Actualizar una base existente desde pgAdmin 4
 
-Antes de iniciar la versión nueva, respalde la base y ejecute en pgAdmin 4 > **Query Tool**, conectado a `natillera`, el archivo:
+Los siguientes son scripts históricos, no instrucciones para ejecutarlos directamente. Antes de cambiar una base existente, siga el procedimiento de revisión y preservación de la sección de producción:
 
 ```text
 database/migracion_pagos_deudas.sql
 ```
 
-La migración agrega los campos de intereses, saldos y trazabilidad; conserva los pagos existentes y comienza a acumular intereses mensuales desde la fecha de ejecución, sin generar cargos retroactivos. Para habilitar la gestión de participantes y abonos de actividades, ejecute también `database/migracion_actividades_participantes.sql` después de confirmar que existen las tablas `actividad`, `actividad_participante` y `usuario`. No ejecute estos scripts en una base vacía que ya se creó con `database/schema.sql`, porque ese esquema ya incluye los cambios. Después, desde PowerShell en la raíz del proyecto:
+El script agrega campos de intereses, saldos y trazabilidad, y comienza a acumular intereses mensuales desde su fecha de ejecución. Existe también `database/migracion_actividades_participantes.sql` para participantes y abonos. No ejecute ninguno sin evaluar el esquema, historial y efectos sobre los datos. Para regenerar el cliente sin modificar el esquema:
 
 ```powershell
 pnpm --filter @natillera/backend prisma:generate
@@ -322,7 +340,7 @@ Reinicie el backend y frontend. Los detalles paso a paso están en [docs/CREACIO
 
 En una vigencia abierta el administrador puede volver a **Configurar valor y calendario**. El nuevo valor aplica solo a sorteos agregados después; los sorteos ya creados conservan su valor, incluso para socios incorporados posteriormente. Se pueden agregar sorteos y modificar fechas abiertas a fechas futuras de la vigencia, sin eliminar sorteos existentes ni modificar cerrados. La pantalla muestra el recaudo elegible actual y las proyecciones con y sin ganador; al cerrar muestra las distribuciones registradas. Estos valores globales son visibles solo para administradores.
 
-Para una base existente, respalde y ejecute en pgAdmin `database/migracion_valor_rifa_por_sorteo.sql`, después de las migraciones anteriores de rifas. Luego detenga el backend, regenere Prisma y reinícielo. Si usa Prisma Migrate o el esquema completo actualizado, no ejecute el script manual.
+El script histórico `database/migracion_valor_rifa_por_sorteo.sql` requiere la revisión y el plan de preservación de la sección de producción antes de aplicarlo a una base existente.
 
 Al inicio de cada vigencia, el administrador configura el valor por socio y las fechas y horas de los sorteos que sí se realizarán. Cada fecha puede ser cualquier día del año de la vigencia, sin necesidad de coincidir con el mes de la etiqueta, y se interpreta en la zona horaria de Colombia. Las fechas son opcionales mes a mes: se deja en blanco un mes sin rifa, y en ese mes no se crea sorteo ni cuota. Se crea una cuota individual pendiente por socio activo únicamente para cada sorteo programado. Un miembro con rol `ADMINISTRADOR` también participa si tiene ahorros vigentes; al registrar su primer ahorro, se generan cuotas para los sorteos futuros. Los pagos pendientes impiden participar. No se crean cuotas retroactivas para sorteos pasados.
 
@@ -334,7 +352,7 @@ Al liquidar la vigencia, las cuotas de rifa que sigan impagas se descuentan prim
 
 El dashboard del socio muestra las cuotas de rifa de su vigencia, indicando si están pendientes y que no participa hasta pagar antes del sorteo. El administrador puede controlar la visibilidad de estos datos y de las ganancias propias desde **Roles y permisos > Dashboard > Campos**. Cuando el campo **Mis ganancias** esté desactivado para SOCIO, la API lo omite y el dashboard no lo muestra. Los socios solo pueden consultar sus propias cuotas, su elegibilidad y cualquier valor asignado; no ven pagos ni distribuciones individuales de otros socios ni los totales financieros administrativos.
 
-Para una base ya creada, respalde los datos y ejecute en pgAdmin 4, en este orden, `database/migracion_rifa_por_socio_y_calendario.sql` si aún no tiene el calendario mensual y `database/migracion_control_cuotas_rifa.sql` para habilitar anulación y descuentos en la liquidación. Para bases vacías, `database/schema.sql` ya incorpora el esquema actualizado. Después regenere Prisma y reinicie la aplicación:
+Los scripts históricos `database/migracion_rifa_por_socio_y_calendario.sql` y `database/migracion_control_cuotas_rifa.sql` requieren la revisión y el plan de preservación de la sección de producción antes de aplicarlos a una base existente. Para regenerar el cliente sin modificar el esquema:
 
 ```powershell
 pnpm --filter @natillera/backend prisma:generate
@@ -354,7 +372,7 @@ La seed incluye datos representativos para todas las áreas principales:
 - Deuda pendiente
 - Liquidación de ejemplo
 
-Para cargar o volver a cargar los datos desde la raíz del proyecto:
+Solo para una base local de demostración aislada, cuyo contenido pueda modificarse, cargue los datos desde la raíz del proyecto. No ejecute el seed sobre la base de pruebas que debe conservarse ni sobre producción:
 
 ```powershell
 pnpm --filter @natillera/backend prisma:seed
@@ -413,20 +431,20 @@ La navegación consulta los permisos configurados y oculta los módulos no autor
 
 ### Migrar una base existente desde pgAdmin 4
 
-Antes de reiniciar el backend con esta versión, haga un respaldo en pgAdmin y ejecute en **Query Tool**, conectado a `natillera`, el archivo:
+El siguiente script es histórico. No lo ejecute sobre una base existente sin la revisión y el plan de preservación descritos en la sección de producción:
 
 ```text
 database/migracion_usuarios_permisos.sql
 ```
 
-Después regenere el cliente Prisma y reinicie el backend:
+Para regenerar el cliente sin modificar el esquema y arrancar el backend local:
 
 ```powershell
 pnpm --filter @natillera/backend prisma:generate
 pnpm --filter @natillera/backend dev
 ```
 
-Si la base todavía conserva nombres de tablas en inglés, ejecute primero `database/migracion_nombres_espanol.sql`. El proceso detallado está en [docs/CREACION_BASE_DATOS.md](docs/CREACION_BASE_DATOS.md).
+Si la base todavía conserva nombres de tablas en inglés, `database/migracion_nombres_espanol.sql` también requiere revisión previa. Consulte [docs/CREACION_BASE_DATOS.md](docs/CREACION_BASE_DATOS.md).
 
 La matriz de permisos actualmente se configura por rol; todavía no hay excepciones individuales por usuario ni administración de grupos arbitrarios. Los permisos Exportar e Imprimir se almacenan en la matriz; las funciones de generación/impresión de archivos deben implementarse en los módulos que las requieran.
 
