@@ -17,6 +17,13 @@ export function normalizeRaffleAmount(amount) {
   return fromCents(toCents(amount));
 }
 
+export function normalizeRafflePaymentDate(value, now = new Date()) {
+  const paidAt = value ? new Date(value) : now;
+  if (!Number.isFinite(paidAt.getTime())) throw new RangeError("Ingrese una fecha de pago válida");
+  if (paidAt > now) throw new RangeError("La fecha de pago no puede estar en el futuro");
+  return paidAt;
+}
+
 export function sumRaffleAmounts(amounts) {
   return fromCents(amounts.reduce((total, amount) => total + toCents(amount), 0));
 }

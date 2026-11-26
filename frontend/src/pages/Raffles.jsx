@@ -37,6 +37,8 @@ export default function Raffles() {
   const [monthlyAmount, setMonthlyAmount] = useState("");
   const [winningNumber, setWinningNumber] = useState("");
   const [drawDate, setDrawDate] = useState("");
+  const [paymentEntry, setPaymentEntry] = useState(null);
+  const [paymentDate, setPaymentDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -45,6 +47,7 @@ export default function Raffles() {
   const [drawOpen, setDrawOpen] = useState(false);
   const [editDrawDateOpen, setEditDrawDateOpen] = useState(false);
 
+  const paymentDateIsEdit = Boolean(paymentEntry?.paidAt);
   const selectedMonth = items.find((item) => item.id === selectedMonthId) || null;
   const availableMonths = useMemo(
     () => items.filter((item) => !filters.vigenciaId || item.vigenciaId === filters.vigenciaId),
@@ -135,16 +138,30 @@ export default function Raffles() {
     }
   }
 
-  async function registerPayment(entry) {
+  function openPaymentDate(entry) {
+    setPaymentEntry(entry);
+    setPaymentDate(entry.paidAt ? toBogotaInput(entry.paidAt) : toBogotaInput(new Date()));
+    setError("");
+  }
+
+  async function savePayment(event) {
+    event.preventDefault();
     setSaving(true);
     setError("");
     setNotice("");
     try {
-      await api.post(`/rifas-mensuales/${selectedMonth.id}/pagos/${entry.memberId}`);
-      setNotice(`Pago de ${displayName(entry.member)} registrado por ${currency.format(Number(entry.amount))}.`);
+      const paidAt = toBogotaISOString(paymentDate);
+      if (paymentDateIsEdit) {
+        await api.patch(`/rifas-mensuales/${selectedMonth.id}/pagos/${paymentEntry.memberId}/fecha`, { paidAt });
+        setNotice(`Fecha de pago de ${displayName(paymentEntry.member)} actualizada.`);
+      } else {
+        await api.post(`/rifas-mensuales/${selectedMonth.id}/pagos/${paymentEntry.memberId}`, { paidAt });
+        setNotice(`Pago de ${displayName(paymentEntry.member)} registrado por ${currency.format(Number(paymentEntry.amount))}.`);
+      }
+      setPaymentEntry(null);
       await load();
     } catch (err) {
-      setError(err.response?.data?.error || "No fue posible registrar el pago");
+      setError(err.response?.data?.error || err.message || "No fue posible guardar la fecha de pago");
     } finally {
       setSaving(false);
     }
@@ -338,11 +355,14 @@ export default function Raffles() {
                       <TableCell>{entry.eligible ? "Sí" : "No"}</TableCell>
                       <TableCell>
                         {entry.paidAt && !selectedMonth.finalizedAt && (
+                          <Button size="small" disabled={saving} onClick={() => openPaymentDate(entry)}>Modificar fecha</Button>
+                        )}
+                        {entry.paidAt && !selectedMonth.finalizedAt && (
                           <Button size="small" color="error" disabled={saving} onClick={() => annulPayment(entry)}>Anular pago</Button>
                         )}
                         {!entry.paidAt && ["PENDIENTE", "DESCUENTO PARCIAL"].includes(entry.status) &&
                           !selectedMonth.finalizedAt && (
-                          <Button size="small" disabled={saving} onClick={() => registerPayment(entry)}>Registrar pago</Button>
+                          <Button size="small" disabled={saving} onClick={() => openPaymentDate(entry)}>Registrar pago</Button>
                         )}
                       </TableCell>
                     </TableRow>
@@ -446,6 +466,30 @@ export default function Raffles() {
           <DialogActions>
             <Button onClick={() => setDrawOpen(false)} disabled={saving}>Cancelar</Button>
             <Button type="submit" variant="contained" disabled={saving}>{saving ? "Guardando..." : "Confirmar sorteo"}</Button>
+          </DialogActions>
+        </Box>
+      </Dialog>
+
+      <Dialog open={Boolean(paymentEntry)} onClose={() => !saving && setPaymentEntry(null)} fullWidth maxWidth="sm">
+        <Box component="form" onSubmit={savePayment}>
+          <DialogTitle>{paymentDateIsEdit ? "Modificar fecha de pago" : "Registrar pago"}</DialogTitle>
+          <DialogContent sx={{ display: "grid", gap: 2, pt: "16px !important" }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <Alert severity="info">
+              Indique la fecha real del pago. Si es posterior a la fecha del sorteo, el socio quedará pagado, pero no participará en ese sorteo.
+            </Alert>
+            <TextField
+              required type="datetime-local" label="Fecha y hora del pago" value={paymentDate}
+              onChange={(event) => setPaymentDate(event.target.value)}
+              inputProps={{ max: toBogotaInput(new Date()) }}
+              InputLabelProps={{ shrink: true }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setPaymentEntry(null)} disabled={saving}>Cancelar</Button>
+            <Button type="submit" variant="contained" disabled={saving || !paymentDate}>
+              {saving ? "Guardando..." : paymentDateIsEdit ? "Guardar fecha" : "Registrar pago"}
+            </Button>
           </DialogActions>
         </Box>
       </Dialog>
