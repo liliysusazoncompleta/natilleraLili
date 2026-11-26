@@ -196,6 +196,14 @@ Debe colocar el backend detrás de HTTPS y configurar `CORS_ORIGIN` exactamente 
 
 Sirva todo el contenido de `frontend\dist` desde el dominio del frontend y configure el fallback de la SPA a `index.html` para las rutas internas de React.
 
+#### GitHub Pages
+
+El flujo `.github/workflows/pages.yml` compila y publica el frontend al actualizar la rama `desarrollo` o al ejecutarlo manualmente. En GitHub, vaya a **Settings > Pages > Build and deployment** y cambie **Source** de **Deploy from a branch** a **GitHub Actions**. Publicar una rama que solo contiene el README no publica la aplicación compilada. Los cambios deben estar en la rama remota antes de que el flujo pueda ejecutarse.
+
+En **Settings > Secrets and variables > Actions > Variables**, cree `VITE_API_URL` con la URL HTTPS pública del backend terminada en `/api` (sin credenciales), por ejemplo `https://api.dominio.com/api`. Vuelva a ejecutar el flujo después de cambiarla, pues Vite incorpora la variable durante la compilación. Si falta o no es válida, se mostrará un aviso y el inicio de sesión estará deshabilitado. GitHub Pages solo aloja el frontend: el backend debe estar desplegado y accesible por HTTPS, con `CORS_ORIGIN=https://liliysusazoncompleta.github.io` en Railway. No use la URL privada de PostgreSQL ni la del backend interno de Railway en el navegador.
+
+En Pages las rutas usan `#` para que funcionen la recarga y los enlaces directos sin una regla de fallback del servidor; los demás despliegues conservan sus rutas habituales.
+
 Ejemplo de destinos:
 
 - Frontend: `https://dominio.com`

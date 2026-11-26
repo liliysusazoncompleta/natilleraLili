@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Alert, Box, Button, Card, CardContent, Container, TextField, Typography } from "@mui/material";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
-import { api } from "../api";
+import { api, apiConfig } from "../api";
 import { useAuthStore } from "../store";
 
 export default function Login() {
@@ -39,7 +39,7 @@ export default function Login() {
             <Box component="form" onSubmit={submit}>
               <TextField fullWidth label="Correo o nombre de usuario" margin="normal" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               <TextField fullWidth label="Contraseña" margin="normal" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-              <Button fullWidth size="large" variant="contained" type="submit" sx={{ mt: 2 }}>Iniciar sesión</Button>
+              <Button fullWidth size="large" variant="contained" type="submit" disabled={Boolean(apiConfig.error)} sx={{ mt: 2 }}>Iniciar sesión</Button>
             </Box>
           </CardContent>
         </Card>
