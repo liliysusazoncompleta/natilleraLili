@@ -7,7 +7,8 @@ import {
   normalizeRaffleAmount,
   normalizeRafflePaymentDate,
   planRaffleSchedule,
-  projectRaffleDistribution
+  projectRaffleDistribution,
+  resolveRaffleWinner
 } from "./raffle-finance.js";
 
 test("raffle amounts are normalized exactly to cents and reject extra decimals", () => {
@@ -22,6 +23,18 @@ test("raffle payment dates default to now, allow past dates, and reject invalid 
   assert.equal(normalizeRafflePaymentDate(pastDate.toISOString(), now).getTime(), pastDate.getTime());
   assert.throws(() => normalizeRafflePaymentDate("invalid", now), /fecha de pago válida/);
   assert.throws(() => normalizeRafflePaymentDate("2026-11-26T20:00:01.000Z", now), /no puede estar en el futuro/);
+});
+
+test("raffle draw numbers can be recorded when none of the eligible members wins", () => {
+  const eligibleEntries = [
+    { memberId: "member-1", member: { id: "member-1", raffleNumber: "12" } },
+    { memberId: "member-2", member: { id: "member-2", raffleNumber: "34" } }
+  ];
+
+  assert.equal(resolveRaffleWinner(eligibleEntries, "12", null), eligibleEntries[0]);
+  assert.equal(resolveRaffleWinner(eligibleEntries, "99", null), null);
+  assert.equal(resolveRaffleWinner(eligibleEntries, null, "member-2"), eligibleEntries[1]);
+  assert.equal(resolveRaffleWinner(eligibleEntries, null, null), null);
 });
 
 test("raffle fee discounts apply in order, cap at the available balance, and preserve partial balances", () => {

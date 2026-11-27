@@ -23,6 +23,7 @@ import {
   normalizeRafflePaymentDate,
   planRaffleSchedule,
   projectRaffleDistribution,
+  resolveRaffleWinner,
   sumRaffleAmounts
 } from "./raffle-finance.js";
 
@@ -1571,6 +1572,7 @@ app.get("/api/rifas-mensuales", requirePermission("rifas", "consultar"), async (
         programMonthlyAmount: req.user.role === "SOCIO" ? undefined : month.program.monthlyAmount,
         vigenciaId: month.program.vigenciaId,
         vigencia: month.program.vigencia,
+        hasWinner: Boolean(month.winnerMemberId),
         winner: req.user.role === "SOCIO" && !isOwnWin ? null : month.winner,
         winnerMemberId: req.user.role === "SOCIO" ? (isOwnWin ? req.memberId : null) : month.winnerMemberId,
         collectedAmount: req.user.role === "SOCIO" ? undefined : month.collectedAmount,
@@ -1853,13 +1855,8 @@ app.post("/api/rifas-mensuales/:id/sortear", requirePermission("rifas", "aprobar
         include: { member: { select: { id: true, firstName: true, lastName: true, raffleNumber: true } } },
         orderBy: [{ member: { lastName: "asc" } }, { member: { firstName: "asc" } }]
       });
-      let winnerEntry = null;
-      if (winnerMemberId) {
-        winnerEntry = eligibleEntries.find(({ member }) => member.id === winnerMemberId);
-      } else if (winningNumber) {
-        winnerEntry = eligibleEntries.find(({ member }) => member.raffleNumber === winningNumber);
-      }
-      if ((winnerMemberId || winningNumber) && !winnerEntry) {
+      const winnerEntry = resolveRaffleWinner(eligibleEntries, winningNumber, winnerMemberId);
+      if (winnerMemberId && !winnerEntry) {
         const error = new Error("El ganador debe ser un socio activo que haya pagado antes del sorteo");
         error.status = 400;
         throw error;
@@ -1898,7 +1895,7 @@ app.post("/api/rifas-mensuales/:id/sortear", requirePermission("rifas", "aprobar
         where: { id: month.id },
         data: {
           collectedAmount,
-          winningNumber: winnerEntry ? (winningNumber || winnerEntry.member.raffleNumber) : null,
+          winningNumber: winningNumber || winnerEntry?.member.raffleNumber || null,
           winnerMemberId: winnerEntry?.memberId || null,
           prize: payout.prize,
           adminCommission: payout.adminCommission,
@@ -1919,6 +1916,7 @@ app.post("/api/rifas-mensuales/:id/sortear", requirePermission("rifas", "aprobar
     await audit(req, "RAFFLE_DRAW_CLOSED", "raffle_month", result.id, {
       collectedAmount: String(result.collectedAmount),
       winnerMemberId: result.winnerMemberId,
+      winningNumber: result.winningNumber,
       adminCommission: String(result.adminCommission),
       distributions: result.distributions.length
     });

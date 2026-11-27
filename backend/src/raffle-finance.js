@@ -24,6 +24,12 @@ export function normalizeRafflePaymentDate(value, now = new Date()) {
   return paidAt;
 }
 
+export function resolveRaffleWinner(eligibleEntries, winningNumber, winnerMemberId) {
+  if (winnerMemberId) return eligibleEntries.find(({ member }) => member.id === winnerMemberId) || null;
+  if (winningNumber) return eligibleEntries.find(({ member }) => member.raffleNumber === winningNumber) || null;
+  return null;
+}
+
 export function sumRaffleAmounts(amounts) {
   return fromCents(amounts.reduce((total, amount) => total + toCents(amount), 0));
 }

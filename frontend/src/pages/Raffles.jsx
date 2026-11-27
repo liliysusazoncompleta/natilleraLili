@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert, Box, Button, Card, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
-  MenuItem, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography
+  Chip, MenuItem, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography
 } from "@mui/material";
 import { api } from "../api";
 import { useAuthStore } from "../store";
@@ -194,7 +194,7 @@ export default function Raffles() {
       setDrawOpen(false);
       setNotice(data.winner
         ? `Sorteo cerrado. Ganador: ${displayName(data.winner)}. Premio asignado: ${currency.format(Number(data.prize))}.`
-        : "Sorteo cerrado sin ganador; se asignó el 3 % a los administradores y el resto a quienes pagaron a tiempo.");
+        : `Sorteo cerrado sin ganador${data.winningNumber ? `; número sorteado: ${data.winningNumber}` : ""}. Se asignó el 3 % a los administradores y el resto a quienes pagaron a tiempo.`);
       await load();
     } catch (err) {
       setError(err.response?.data?.error || "No fue posible cerrar el sorteo");
@@ -288,11 +288,16 @@ export default function Raffles() {
                 </Button>
               )}
               {selectedMonth.finalizedAt && (
-                <Typography>
-                  Resultado: <strong>{selectedMonth.winner
-                    ? `${displayName(selectedMonth.winner)}${selectedMonth.winner.raffleNumber ? ` · Número ${selectedMonth.winner.raffleNumber}` : ""} · Premio ${currency.format(Number(selectedMonth.prize))}`
-                    : "Sorteo cerrado sin ganador"}</strong>
-                </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                  <Typography>
+                    Resultado: <strong>{selectedMonth.winner
+                      ? `${displayName(selectedMonth.winner)}${selectedMonth.winner.raffleNumber ? ` · Número ${selectedMonth.winner.raffleNumber}` : ""} · Premio ${currency.format(Number(selectedMonth.prize))}`
+                      : "Sorteo cerrado sin ganador"}</strong>
+                  </Typography>
+                  {!selectedMonth.hasWinner && selectedMonth.winningNumber && (
+                    <Chip size="small" color="info" variant="outlined" label={`Número sorteado: ${selectedMonth.winningNumber}`} />
+                  )}
+                </Box>
               )}
               {canCloseDraw && <Button variant="contained" onClick={() => { setWinningNumber(""); setDrawOpen(true); }}>Cerrar sorteo</Button>}
             </Card>
@@ -386,8 +391,23 @@ export default function Raffles() {
               )}
               {selectedMonth.finalizedAt && (
                 <Typography>
-                  Resultado: <strong>{selectedMonth.winnerMemberId === ownEntry.memberId ? "Ganaste" : selectedMonth.winningNumber ? `Número ganador ${selectedMonth.winningNumber}` : "Sin ganador"}</strong>
+                  Resultado: <strong>{
+                    selectedMonth.winnerMemberId === ownEntry.memberId
+                      ? "Ganaste"
+                      : selectedMonth.hasWinner
+                        ? selectedMonth.winningNumber ? `Número sorteado ${selectedMonth.winningNumber}` : "Sorteo cerrado"
+                        : "Sin ganador"
+                  }</strong>
                 </Typography>
+              )}
+              {selectedMonth.finalizedAt && !selectedMonth.hasWinner && selectedMonth.winningNumber && (
+                <Chip
+                  size="small"
+                  color="info"
+                  variant="outlined"
+                  label={`Número sorteado: ${selectedMonth.winningNumber} · Sin ganador`}
+                  sx={{ justifySelf: "start" }}
+                />
               )}
               {ownEntry.paidAt && <Typography>Fecha de pago registrada: {new Date(ownEntry.paidAt).toLocaleString("es-CO")}</Typography>}
               {selectedMonth.distributions?.length > 0 && (
@@ -456,11 +476,11 @@ export default function Raffles() {
               Solo socios activos con la cuota pagada antes del sorteo participan. El 3 % se asigna a los administradores; si no hubo ganador, el resto se reparte entre esos participantes.
             </Alert>
             <TextField
-              label="Número ganador (opcional)"
+              label="Número sorteado (opcional)"
               value={winningNumber}
               onChange={(event) => setWinningNumber(event.target.value)}
               inputProps={{ maxLength: 20 }}
-              helperText={`Debe pertenecer a un socio activo que pagó a tiempo: ${selectedMonth?.entries.filter((entry) => entry.eligible).map((entry) => entry.member.raffleNumber).filter(Boolean).join(", ") || "no hay participantes habilitados"}. Déjelo vacío si no hubo ganador.`}
+              helperText="Ingrese el número que salió sorteado. Si ningún participante elegible tiene ese número, se registrará como número sorteado sin ganador. Puede dejarlo vacío."
             />
           </DialogContent>
           <DialogActions>
