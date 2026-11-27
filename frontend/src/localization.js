@@ -1,5 +1,4 @@
 const fieldLabels = {
-  id: "Código",
   email: "Correo electrónico",
   passwordHash: "Contraseña cifrada",
   role: "Rol",
@@ -73,7 +72,6 @@ const fieldLabels = {
   roleSnapshot: "Rol al cierre",
   action: "Acción",
   entity: "Registro",
-  entityId: "Código del registro",
   metadata: "Detalles",
   ipAddress: "Dirección IP",
   total: "Total",
@@ -82,6 +80,8 @@ const fieldLabels = {
   pageSize: "Registros por página",
   format: "Formato"
 };
+
+const internalIdentifierFields = new Set(["id", "entityid", "code", "codigo"]);
 
 const enumLabels = {
   SOCIO: "Socio",
@@ -130,7 +130,12 @@ const dateFields = new Set([
 ]);
 
 export function labelForField(field) {
+  if (isInternalIdentifierField(field)) return "";
   return fieldLabels[field] || field.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/^./, (letter) => letter.toLocaleUpperCase("es-CO"));
+}
+
+export function isInternalIdentifierField(field) {
+  return internalIdentifierFields.has(field.replace(/[^a-z0-9]/gi, "").toLocaleLowerCase("en-US"));
 }
 
 export function displayValue(field, value, item = {}) {

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert, Box, Button, Card, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField, Typography, Table, TableHead, TableRow, TableCell, TableBody } from "@mui/material";
 import { api } from "../api";
 import { useAuthStore } from "../store";
-import { displayValue, labelForField } from "../localization";
+import { displayValue, isInternalIdentifierField, labelForField } from "../localization";
 import FilterBar from "../components/FilterBar";
 
 export default function SimpleModule({ title, endpoint, fields = [], filterConfig = [] }) {
@@ -153,7 +153,7 @@ export default function SimpleModule({ title, endpoint, fields = [], filterConfi
   const columns = items.length
     ? (endpoint === "/prestamos"
       ? ["borrowerName", "memberId", "type", "date", "principal", "balance", "generatedInterest", "pendingInterest", "rate", "status"].filter((key) => key in items[0])
-      : Object.keys(items[0]).filter((key) => typeof items[0][key] !== "object").slice(0, 6))
+      : Object.keys(items[0]).filter((key) => !isInternalIdentifierField(key) && typeof items[0][key] !== "object").slice(0, 6))
     : [];
 
   return (
