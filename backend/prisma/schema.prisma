@@ -151,22 +151,25 @@ model RefreshToken {
 }
 
 model Vigencia {
-  id            String         @id @default(cuid())
-  year          Int            @unique @map("anio")
-  status        VigenciaStatus @default(ABIERTA) @map("estado")
-  closedAt      DateTime?      @map("cerrada_en") @db.Timestamptz(3)
-  members       Member[]
-  savings       Saving[]
-  loans         Loan[]
-  activities    Activity[]
-  raffles       Raffle[]
-  raffleProgram RaffleProgram?
-  debts         Debt[]
-  liquidations  Liquidation[]
-  createdAt     DateTime       @default(now()) @map("creado_en") @db.Timestamptz(3)
-  updatedAt     DateTime       @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(3)
-  deletedAt     DateTime?      @map("eliminado_en") @db.Timestamptz(3)
-  deletedBy     String?        @map("eliminado_por")
+  id                     String         @id @default(cuid())
+  year                   Int            @unique @map("anio")
+  status                 VigenciaStatus @default(ABIERTA) @map("estado")
+  collectionFrequencyDays Int            @default(30) @map("frecuencia_recaudo_dias")
+  startDate              DateTime       @map("fecha_inicio") @db.Date
+  lastPaymentDate        DateTime       @map("fecha_ultimo_pago") @db.Date
+  closedAt               DateTime?      @map("cerrada_en") @db.Timestamptz(3)
+  members                Member[]
+  savings                Saving[]
+  loans                  Loan[]
+  activities             Activity[]
+  raffles                Raffle[]
+  raffleProgram          RaffleProgram?
+  debts                  Debt[]
+  liquidations           Liquidation[]
+  createdAt              DateTime       @default(now()) @map("creado_en") @db.Timestamptz(3)
+  updatedAt              DateTime       @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+  deletedAt              DateTime?      @map("eliminado_en") @db.Timestamptz(3)
+  deletedBy              String?        @map("eliminado_por")
 
   @@map("vigencia")
 }

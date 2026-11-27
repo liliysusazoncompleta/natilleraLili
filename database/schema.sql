@@ -103,13 +103,22 @@ CREATE TABLE "vigencia" (
     "id" TEXT NOT NULL,
     "anio" INTEGER NOT NULL,
     "estado" "estado_vigencia" NOT NULL DEFAULT 'ABIERTA',
+    "frecuencia_recaudo_dias" INTEGER NOT NULL DEFAULT 30,
+    "fecha_inicio" DATE NOT NULL,
+    "fecha_ultimo_pago" DATE NOT NULL,
     "cerrada_en" TIMESTAMPTZ(3),
     "creado_en" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "actualizado_en" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "eliminado_en" TIMESTAMPTZ(3),
     "eliminado_por" TEXT,
 
-    CONSTRAINT "vigencia_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "vigencia_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "vigencia_frecuencia_recaudo_dias_check" CHECK ("frecuencia_recaudo_dias" IN (15, 30)),
+    CONSTRAINT "vigencia_fechas_recaudo_orden_check" CHECK ("fecha_inicio" <= "fecha_ultimo_pago"),
+    CONSTRAINT "vigencia_fechas_recaudo_anio_check" CHECK (
+        EXTRACT(YEAR FROM "fecha_inicio") = "anio"
+        AND EXTRACT(YEAR FROM "fecha_ultimo_pago") = "anio"
+    )
 );
 
 -- CreateTable

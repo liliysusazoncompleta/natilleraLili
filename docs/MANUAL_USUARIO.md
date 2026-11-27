@@ -25,6 +25,8 @@
 ## Operación diaria
 
 - Registre aportes desde Ahorros.
+- En **Vigencias**, indique el año, la frecuencia de recaudo (cada 15 o cada 30 días), la fecha de inicio y la fecha límite del último pago. Las fechas deben estar dentro del año elegido; la configuración no crea pagos automáticamente. Puede editar una vigencia para cambiar estos datos.
+- Al crear un ahorro, seleccione la vigencia y el socio para ver la fecha de su último ahorro registrado en esa vigencia.
 - En **Préstamos > Nuevo registro**, seleccione el tipo de deudor y una vigencia abierta. Para un socio, seleccione al socio deudor; para un particular, registre su nombre y elija el socio avalista activo de esa vigencia. Ingrese el monto y la tasa mensual acordada, que puede ser distinta del 5 % o 10 %.
 - Indique los días transcurridos desde el desembolso para el primer interés. Por ejemplo, cinco días después del 10 de enero es el 15 de enero; los siguientes intereses se generan mensualmente a partir de esa fecha. Consulte tanto los intereses generados como los pendientes en la lista de préstamos.
 - Use **Modificar** para corregir las condiciones antes de que haya pagos o intereses causados. Después solo se pueden cambiar observaciones, mientras la vigencia esté abierta. Los préstamos anteriores mantienen su calendario original si no se modifica expresamente.

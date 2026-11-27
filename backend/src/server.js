@@ -16,6 +16,7 @@ import { createLoan, updateLoan } from "./loan-creation.js";
 import { summarizeLoanPayments } from "./debt-summary.js";
 import { loadSettlement, saveSettlement } from "./liquidation.js";
 import { calculateActivityGains, calculateParticipantBalance, calculateSaleTotals, calculateActivityTotals, saleWithBalance, pendingSaleDebts, snapshotSaleProduct } from "./activity-finance.js";
+import { validateVigenciaConfiguration } from "./vigencia-config.js";
 import {
   calculateRaffleDistribution,
   isRaffleDateInVigencia,
@@ -424,19 +425,61 @@ app.get("/api/vigencias", requirePermission("vigencias", "consultar"), requireAd
 app.post("/api/vigencias", requirePermission("vigencias", "crear"), requireAdmin, async (req, res, next) => {
   try {
     const year = Number(req.body.year);
-    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
-      return res.status(400).json({ error: "Debe indicar un año de vigencia válido" });
+    let configuration;
+    try {
+      configuration = validateVigenciaConfiguration({
+        year,
+        collectionFrequencyDays: req.body.collectionFrequencyDays,
+        startDate: req.body.startDate,
+        lastPaymentDate: req.body.lastPaymentDate
+      });
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
     }
-    const item = await prisma.vigencia.create({ data: { year, status: "ABIERTA" } });
-    await audit(req, "CREATE", "vigencia", item.id, { year: item.year });
+    const item = await prisma.vigencia.create({ data: { year, status: "ABIERTA", ...configuration } });
+    await audit(req, "CREATE", "vigencia", item.id, {
+      year: item.year,
+      collectionFrequencyDays: item.collectionFrequencyDays,
+      startDate: item.startDate,
+      lastPaymentDate: item.lastPaymentDate
+    });
     res.status(201).json(item);
   } catch (error) { next(error); }
 });
 
 app.patch("/api/vigencias/:id", requirePermission("vigencias", "editar"), requireAdmin, async (req, res, next) => {
   try {
-    const item = await prisma.vigencia.update({ where: { id: req.params.id }, data: { status: req.body.status, closedAt: req.body.status === "CERRADA" ? new Date() : undefined } });
-    await audit(req, "UPDATE", "vigencia", item.id, { status: item.status });
+    const existing = await prisma.vigencia.findFirst({ where: { id: req.params.id, deletedAt: null } });
+    if (!existing) return res.status(404).json({ error: "No se encontró la vigencia" });
+
+    let configuration;
+    try {
+      configuration = validateVigenciaConfiguration({
+        year: req.body.year ?? existing.year,
+        collectionFrequencyDays: req.body.collectionFrequencyDays ?? existing.collectionFrequencyDays,
+        startDate: req.body.startDate ?? existing.startDate,
+        lastPaymentDate: req.body.lastPaymentDate ?? existing.lastPaymentDate
+      });
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
+    }
+    const item = await prisma.vigencia.update({
+      where: { id: existing.id },
+      data: {
+        ...configuration,
+        ...(req.body.year !== undefined ? { year: Number(req.body.year) } : {}),
+        ...(req.body.status ? {
+          status: req.body.status,
+          closedAt: req.body.status === "CERRADA" ? new Date() : req.body.status === "ABIERTA" ? null : undefined
+        } : {})
+      }
+    });
+    await audit(req, "UPDATE", "vigencia", item.id, {
+      status: item.status,
+      collectionFrequencyDays: item.collectionFrequencyDays,
+      startDate: item.startDate,
+      lastPaymentDate: item.lastPaymentDate
+    });
     res.json(item);
   } catch (error) { next(error); }
 });

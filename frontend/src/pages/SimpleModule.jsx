@@ -17,6 +17,7 @@ export default function SimpleModule({ title, endpoint, fields = [], filterConfi
   const [form, setForm] = useState({});
   const [options, setOptions] = useState({});
   const [optionsError, setOptionsError] = useState("");
+  const [latestSaving, setLatestSaving] = useState(null);
   const [filters, setFilters] = useState(Object.fromEntries(filterConfig.map((filter) => [filter.name, ""])));
   const [filterOptions, setFilterOptions] = useState({});
 
@@ -33,6 +34,20 @@ export default function SimpleModule({ title, endpoint, fields = [], filterConfi
     } finally {
       setLoading(false);
     }
+  }
+
+  function openEditVigencia(item) {
+    const values = {
+      year: String(item.year),
+      collectionFrequencyDays: String(item.collectionFrequencyDays),
+      startDate: new Date(item.startDate).toISOString().slice(0, 10),
+      lastPaymentDate: new Date(item.lastPaymentDate).toISOString().slice(0, 10)
+    };
+    setError("");
+    setEditing(item);
+    setForm(values);
+    setOriginalForm(values);
+    setOpen(true);
   }
 
   useEffect(() => {
@@ -76,6 +91,33 @@ export default function SimpleModule({ title, endpoint, fields = [], filterConfi
     })).then((entries) => setFilterOptions(Object.fromEntries(entries))).catch(() => setFilterOptions({}));
   }, [endpoint, JSON.stringify(filterConfig)]);
 
+  useEffect(() => {
+    if (endpoint !== "/ahorros" || !open || !form.memberId || !form.vigenciaId) {
+      setLatestSaving(null);
+      return undefined;
+    }
+
+    let active = true;
+    setLatestSaving({ status: "loading" });
+    api.get("/ahorros", { params: { memberId: form.memberId, vigenciaId: form.vigenciaId, pageSize: 1 } })
+      .then(({ data }) => {
+        if (!active) return;
+        const latest = data.items?.[0];
+        setLatestSaving(latest
+          ? { status: "found", date: latest.date }
+          : { status: "empty" });
+      })
+      .catch((err) => {
+        if (!active) return;
+        setLatestSaving({
+          status: "error",
+          message: err.response?.data?.error || "No fue posible consultar el último ahorro del socio"
+        });
+      });
+
+    return () => { active = false; };
+  }, [endpoint, open, form.memberId, form.vigenciaId]);
+
   function openCreate() {
     setError("");
     setEditing(null);
@@ -108,6 +150,10 @@ export default function SimpleModule({ title, endpoint, fields = [], filterConfi
   );
 
   function updateField(name, value) {
+    if (endpoint === "/ahorros" && name === "vigenciaId") {
+      setForm((current) => ({ ...current, vigenciaId: value, memberId: "" }));
+      return;
+    }
     if (endpoint === "/prestamos" && (name === "type" || name === "vigenciaId")) {
       setForm((current) => ({ ...current, [name]: value, memberId: "" }));
       return;
@@ -190,6 +236,7 @@ export default function SimpleModule({ title, endpoint, fields = [], filterConfi
                     {user?.role === "ADMINISTRADOR" && fields.length > 0 && (
                       <TableCell>
                         {endpoint === "/prestamos" && <Button size="small" onClick={() => openEditLoan(item)}>Modificar</Button>}
+                        {endpoint === "/vigencias" && <Button size="small" onClick={() => openEditVigencia(item)}>Modificar</Button>}
                         <Button size="small" color="error" onClick={() => remove(item)}>Eliminar</Button>
                       </TableCell>
                     )}
@@ -202,12 +249,27 @@ export default function SimpleModule({ title, endpoint, fields = [], filterConfi
       )}
       <Dialog open={open} onClose={() => !saving && setOpen(false)} fullWidth maxWidth="sm">
         <Box component="form" onSubmit={save}>
-          <DialogTitle>{editing ? "Modificar préstamo" : `Nuevo ${title.toLowerCase()}`}</DialogTitle>
+          <DialogTitle>{editing ? `Modificar ${title.toLowerCase().replace(/s$/, "")}` : `Nuevo ${title.toLowerCase().replace(/s$/, "")}`}</DialogTitle>
           <DialogContent sx={{ display: "grid", gap: 2, pt: "16px !important" }}>
             {error && <Alert severity="error">{error}</Alert>}
             {optionsError && <Alert severity="error">{optionsError}</Alert>}
             {termsLocked && <Alert severity="info">Este préstamo tiene pagos, intereses causados o una vigencia cerrada. Sus condiciones no se pueden cambiar; en una vigencia abierta solo puede modificar las observaciones.</Alert>}
             {endpoint === "/prestamos" && form.type === "PARTICULAR" && <Alert severity="info">El saldo pendiente quedará asociado al socio avalista y se tendrá en cuenta en su liquidación.</Alert>}
+            {endpoint === "/ahorros" && latestSaving?.status === "loading" && <Alert severity="info">Consultando el último ahorro del socio...</Alert>}
+            {endpoint === "/ahorros" && latestSaving?.status === "found" && (
+              <Alert severity="info">
+                Último ahorro ingresado para este socio en la vigencia seleccionada: <strong>{new Date(latestSaving.date).toLocaleDateString("es-CO")}</strong>.
+              </Alert>
+            )}
+            {endpoint === "/ahorros" && latestSaving?.status === "empty" && (
+              <Alert severity="info">El socio seleccionado no tiene ahorros registrados en esta vigencia.</Alert>
+            )}
+            {endpoint === "/ahorros" && latestSaving?.status === "error" && (
+              <Alert severity="error">{latestSaving.message}</Alert>
+            )}
+            {endpoint === "/vigencias" && (
+              <Alert severity="info">Configure la frecuencia de recaudo y el rango de fechas de esta vigencia. El calendario es informativo; los pagos no se generan automáticamente.</Alert>
+            )}
             {fields.filter((field) => !field.showFor || form.type === field.showFor).map((field) => (
               <TextField
                 key={field.name}

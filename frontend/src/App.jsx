@@ -74,7 +74,13 @@ export default function App() {
           <Route path="rifas" element={<Raffles />} />
           <Route path="deudas" element={<Debts />} />
           <Route path="vigencias" element={<AdminOnly><SimpleModule title="Vigencias" endpoint="/vigencias" fields={[
-          { name: "year", label: "Año", type: "number" }
+          { name: "year", label: "Año", type: "number", inputProps: { min: 2000, max: 2100, step: 1 } },
+          { name: "collectionFrequencyDays", label: "Frecuencia de recaudo", choices: [
+            { value: 15, label: "Cada 15 días" },
+            { value: 30, label: "Cada 30 días" }
+          ] },
+          { name: "startDate", label: "Fecha de inicio de la vigencia", type: "date" },
+          { name: "lastPaymentDate", label: "Fecha del último pago de la vigencia", type: "date" }
         ]} filterConfig={[
           { name: "search", label: "Buscar vigencia" },
           { name: "status", label: "Estado", options: [
