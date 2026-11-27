@@ -103,9 +103,10 @@ export const helpGuides = [
     steps: ["Abra Pagos y pulse Nuevo pago.", "Seleccione el préstamo, escriba el valor, la fecha y las observaciones, y guarde.", "El pago cubre primero intereses pendientes y luego capital. Si es necesario, use Editar o Anular en el registro."]
   },
   {
-    id: "vigencia", title: "¿Cómo creo una vigencia?", keywords: "crear vigencia ano periodo nueva",
-    category: "Administración", role: "ADMINISTRADOR", module: "vigencias", path: "/vigencias", screen: "Vigencias", example: ["Vigencias", "Nuevo registro", "Año"],
-    steps: ["Abra Vigencias desde el menú.", "Pulse Nuevo registro, indique el año y guarde.", "Seleccione una vigencia abierta al registrar las operaciones que lo requieran."]
+    id: "vigencia", title: "¿Cómo configuro una vigencia y su recaudo?", keywords: "crear vigencia año periodo frecuencia recaudo 15 30 fecha inicio ultimo pago",
+    category: "Administración", role: "ADMINISTRADOR", module: "vigencias", path: "/vigencias", screen: "Vigencias", example: ["Vigencias", "Nuevo registro", "Frecuencia de recaudo · Fecha de inicio · Fecha del último pago"],
+    steps: ["Abra Vigencias desde el menú y pulse Nuevo registro.", "Indique el año, seleccione recaudo cada 15 o cada 30 días y defina la fecha de inicio y la fecha del último pago.", "Guarde la configuración. Puede usar Modificar para actualizar las fechas o la frecuencia de una vigencia existente.", "Al registrar un ahorro, seleccione socio y vigencia para consultar la fecha de su ahorro más reciente."],
+    note: "Las fechas son una configuración informativa; la aplicación no genera pagos automáticamente. Ambas fechas deben estar dentro del año de la vigencia."
   }
 ];
 

@@ -4,6 +4,9 @@ const fieldLabels = {
   role: "Rol",
   status: "Estado",
   year: "Año",
+  collectionFrequencyDays: "Frecuencia de recaudo",
+  startDate: "Inicio de la vigencia",
+  lastPaymentDate: "Último pago de la vigencia",
   closedAt: "Fecha de cierre",
   createdAt: "Fecha de creación",
   updatedAt: "Última actualización",
@@ -126,8 +129,11 @@ const currencyFields = new Set([
 
 const dateFields = new Set([
   "date", "birthDate", "joinedAt", "closedAt", "createdAt", "updatedAt",
-  "deletedAt", "expiresAt", "revokedAt", "dueDate", "interestAnchorAt", "lastInterestAt", "annulledAt", "discountedAt", "lastPaymentDate"
+  "deletedAt", "expiresAt", "revokedAt", "dueDate", "interestAnchorAt", "lastInterestAt", "annulledAt", "discountedAt", "lastPaymentDate",
+  "startDate"
 ]);
+
+const dateOnlyFields = new Set(["startDate", "lastPaymentDate"]);
 
 export function labelForField(field) {
   if (isInternalIdentifierField(field)) return "";
@@ -151,7 +157,12 @@ export function displayValue(field, value, item = {}) {
 
   if (dateFields.has(field)) {
     const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) return new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" }).format(date);
+    if (!Number.isNaN(date.getTime())) {
+      return new Intl.DateTimeFormat("es-CO", {
+        dateStyle: "medium",
+        ...(dateOnlyFields.has(field) ? { timeZone: "UTC" } : {})
+      }).format(date);
+    }
   }
 
   if (currencyFields.has(field) && Number.isFinite(Number(value))) {

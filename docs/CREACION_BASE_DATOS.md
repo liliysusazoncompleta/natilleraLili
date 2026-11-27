@@ -376,6 +376,19 @@ pnpm --filter @natillera/backend exec prisma migrate resolve --applied 202611242
 
 No ejecute este script en una base vacía creada con `database/schema.sql`, ni en una base donde ya se aplicó esta migración Prisma. La pantalla **Actividades** permite al administrador definir el valor por participante, registrar socios activos, consultar los abonos y saldo, ingresar varios abonos que no superen la deuda, y modificar la actividad mientras la vigencia esté abierta. Las ganancias positivas se asignan solo a participantes; la deuda del costo individual no impide recibirlas.
 
+## Frecuencia y fechas de recaudo por vigencia
+
+En una base existente, haga primero un respaldo y ejecute una vez `database/migracion_fechas_recaudo_vigencia.sql` en pgAdmin. El script agrega a `vigencia` la frecuencia (15 o 30 días), fecha de inicio y fecha límite del último pago; a las vigencias existentes les asigna por defecto cada 30 días y el año calendario completo. No genera pagos ni vencimientos automáticamente. Si usa `prisma migrate deploy` o creó la base con `database/schema.sql` actualizado, no ejecute el script manual.
+
+Después de la migración manual, regenere el cliente Prisma y reinicie el backend. Si administra el historial de migraciones con Prisma, registre `20261126230000_vigencia_recaudo_fechas` como aplicada únicamente después de verificar el SQL y confirmar que las migraciones anteriores están registradas:
+
+```powershell
+pnpm --filter @natillera/backend prisma:generate
+pnpm --filter @natillera/backend exec prisma migrate resolve --applied 20261126230000_vigencia_recaudo_fechas
+```
+
+La configuración se define manualmente al crear o editar una vigencia. Ambas fechas deben pertenecer al año seleccionado y la fecha límite no puede ser anterior a la fecha de inicio.
+
 ## Importación del Excel `NATILLERA 2026.xlsm`
 
 La importación completa del libro no está validada y no debe considerarse parte de la creación del esquema. El requisito es insertar datos en las tablas existentes, sin crear tablas adicionales:
